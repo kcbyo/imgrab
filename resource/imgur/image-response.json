@@ -1,0 +1,49 @@
+{
+    "data": {
+        "id": "9YJpjAa",
+        "title": null,
+        "description": null,
+        "datetime": 1551281782,
+        "type": "image/jpeg",
+        "animated": false,
+        "width": 576,
+        "height": 768,
+        "size": 70922,
+        "views": 14888,
+        "bandwidth": 1055886736,
+        "vote": null,
+        "favorite": false,
+        "nsfw": true,
+        "section": "PetiteGoneWild",
+        "account_url": null,
+        "account_id": null,
+        "is_ad": false,
+        "in_most_viral": false,
+        "has_sound": false,
+        "tags": [],
+        "ad_type": 0,
+        "ad_url": "",
+        "edited": "0",
+        "in_gallery": false,
+        "link": "https://i.imgur.com/9YJpjAa.jpg",
+        "ad_config": {
+            "safeFlags": [
+                "not_in_gallery",
+                "share"
+            ],
+            "highRiskFlags": [],
+            "unsafeFlags": [
+                "sixth_mod_unsafe",
+                "onsfw_mod_unsafe",
+                "nsfw"
+            ],
+            "wallUnsafeFlags": [
+                "onsfw_mod_unsafe_wall",
+                "nsfw"
+            ],
+            "showsAds": false
+        }
+    },
+    "success": true,
+    "status": 200
+}

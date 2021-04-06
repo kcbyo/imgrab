@@ -1,0 +1,46 @@
+# Galleries
+
+Rule34 galleries (actually search result pages) are links with thumbnails. These thumbnails appear to be related to the images they represent. For example, the following, a drawing of Sam Gardner in barbarian garb:
+
+https://us.rule34.xxx/thumbnails/2133/thumbnail_904572c82ed3622a318825e6781f16cc.jpg?2313287
+
+The parameter at the end appears to be meaningless. /shrug
+
+Compare to the link to the actual image:
+
+https://us.rule34.xxx/thumbnails/2133/thumbnail_904572c82ed3622a318825e6781f16cc.jpg?2313287
+https://us.rule34.xxx//images/2133/904572c82ed3622a318825e6781f16cc.png
+
+I believe the double // divider between xxx and images to be a bug on their side. In any case, it doesn't make any difference in the url.
+
+The relevant portions of the route appear to be the segment after images and thumbnails, respectively, and (what I believe to be) a 256 bit hash of the content itself.
+
+...I just checked by downloading and trying some things on the command line: that's the md5 hash of the image.
+
+Now, unfortunately, I don't know that it's possible to guess the image's url based solely on the data available from the thumbnail because the image could present a different file extension. Let me check around real quick.
+
+Blech. Yeah, that's gonna be hard to do. I don't see any indication of file type in the url, so unless you want to just try all the popular filename extensions, I think you're hosed. I had hoped that they would convert everything to png, but they don't. Additionally, I thought maybe they'd offer the files in whatever type you requested, but no. It's bone simple, which means that it'll be necessary to actually download the html of the next page to learn any more about the file.
+
+Subsequent gallery urls are not paged, strictly speaking. Each "page" displays seven rows of six items (at least when you're looking over my shoulder, ok?), or 42 images. See below the second url in a "gallery" of Sam:
+
+https://rule34.xxx/index.php?page=post&s=list&tags=sam_gardner&pid=42
+
+The pid parameter is new, and it's set to 42. My guess is that this number is just incremented by the number of images already displayed. Increasing the offset to any arbitrary number will, it seems to me, display up to 42 images starting from that index. Testing demonstrates that increasing that offset beyond the number of images available does not result in an error, but rather in an empty page.
+
+As far as collecting image page links, it looks as if a very simple regex will do:
+
+href="(index.php\?page=post&amp;s=view&amp;id=\d+)"
+
+The first capture group in this pattern can be tacked onto the root url to produce the url of the page containing the image.
+
+# Images
+
+Images are going to be a pain in the ass. Like most of these sites, rule34 does the whole smaller sample thing before showing you the full size image. Even more fun, the sample image is (of course) generated and does not have the same file extension as the real image. It may be fucking faster to just do this using trial and error based on the thumbnail instead, I swear. >.< There's a cookie, I think, that avoids this resizing hassle, but of course setting a cookie is some annoying-ass shit.
+
+Ahhh. Ok, looks like there is a script on the page that loads the full-resolution version. I think I can just steal the url from that.
+
+Nah, fuck that. Turns out there is also a meta tag in there:
+
+content="(https://us.rule34.xxx//images/[^"]+)"
+
+Actually, the page is full of meta tags inside the body tag, which I didn't think was even a thing, but whatever. This regex seems easy enough.
