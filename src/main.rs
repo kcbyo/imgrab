@@ -36,23 +36,29 @@ fn run(opt: &Opt) -> crate::Result<()> {
         .ok_or_else(|| Error::Unsupported(UnsupportedError::Route, opt.url().into()))?;
 
     match domain {
-        "beta.sankakucomplex.com" => download(opt, sankakubeta::extract(opt.url())?),
-        "e-hentai.org" => download(opt, ehentai::extract(opt.url())?),
-        "fitnakedgirls.com" => download(opt, fitnakedgirls::extract(opt.url())?),
-        "gelbooru.com" => download(opt, gelbooru::extract(opt.url())?),
-        "imgur.com" => download(opt, imgur::extract(opt.url())?),
-        "nhentai.net" => download(opt, nhentai::extract(opt.url())?),
-        "nsfwalbum.com" => download(opt, nsfwalbum::extract(opt.url())?),
-        "rule34.xxx" => download(opt, rule34::extract(opt.url())?),
-        "www.f-list.net" => download(opt, flist::extract(opt.url())?),
-        "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract(opt.url())?),
-        "www.hentai-foundry.com" => download(opt, hentai_foundry::extract(opt.url())?),
+        "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
+        "e-hentai.org" => download(opt, ehentai::extract),
+        "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
+        "gelbooru.com" => download(opt, gelbooru::extract),
+        "imgur.com" => download(opt, imgur::extract),
+        "nhentai.net" => download(opt, nhentai::extract),
+        "nsfwalbum.com" => download(opt, nsfwalbum::extract),
+        "rule34.xxx" => download(opt, rule34::extract),
+        "www.f-list.net" => download(opt, flist::extract),
+        "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
+        "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
 
         other => Err(Error::Unsupported(UnsupportedError::Domain, other.into())),
     }
 }
 
-fn download(opt: &Opt, mut gallery: impl Gallery) -> crate::Result<()> {
+fn download<T: Gallery>(
+    opt: &Opt,
+    extractor: impl Fn(&str) -> crate::Result<T>,
+) -> crate::Result<()> {
+    let start_time = chrono::Local::now();
+
+    let mut gallery = extractor(opt.url())?;
     if let Some(skip) = opt.skip {
         gallery.advance_by(skip)?;
     }
@@ -102,10 +108,12 @@ fn download(opt: &Opt, mut gallery: impl Gallery) -> crate::Result<()> {
         }
     }
 
+    let elapsed = chrono::Local::now().signed_duration_since(start_time);
     println!(
-        "\n{} files ({})",
+        "\n{} files ({})\n{}",
         count,
         bytes_written.fmt_size(Conventional),
+        elapsed,
     );
 
     Ok(())
