@@ -28,87 +28,60 @@ struct ImageModel {
     link: String,
 }
 
-pub struct ImgurAlbum;
+pub fn extract(url: &str) -> crate::Result<ImgurGallery> {
+    let client = build_client()?;
 
-impl ReadGallery for ImgurAlbum {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let client = build_client()?;
-        let images = query_album(&client, url)?.into_iter();
-        Ok(Box::new(ImgurMultipleGallery { client, images }))
-    }
-}
-
-pub struct ImgurGallery;
-
-impl ReadGallery for ImgurGallery {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let client = build_client()?;
-        let images = query_gallery(&client, url)?.into_iter();
-        Ok(Box::new(ImgurMultipleGallery { client, images }))
-    }
-}
-
-pub struct ImgurSingle;
-
-impl ReadGallery for ImgurSingle {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let client = build_client()?;
-        let image = query_image(&client, url)?;
-        Ok(Box::new(ImgurSingleGallery {
+    if url.contains("imgur.com/a/") {
+        let images = query_album(&client, url)?;
+        return Ok(ImgurGallery {
             client,
-            image: Some(image),
-        }))
+            idx: 0,
+            images,
+        });
     }
+
+    if url.contains("imgur.com/gallery/") {
+        let images = query_gallery(&client, url)?;
+        return Ok(ImgurGallery {
+            client,
+            idx: 0,
+            images,
+        });
+    }
+
+    let image = query_image(&client, url)?;
+    Ok(ImgurGallery {
+        client,
+        idx: 0,
+        images: vec![image],
+    })
 }
 
-pub struct ImgurMultipleGallery {
+pub struct ImgurGallery {
     client: Client,
-    images: vec::IntoIter<ImageModel>,
+    idx: usize,
+    images: Vec<ImageModel>,
 }
 
-impl Gallery for ImgurMultipleGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
-        let images: Vec<_> = self.images.by_ref().skip(skip).collect();
-        self.images = images.into_iter();
+impl Gallery for ImgurGallery {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
+        match self.idx {
+            idx if idx < self.images.len() => {
+                self.idx += 1;
+                let link = self.images[idx].link.clone();
+                match self.client.get(&link).send() {
+                    Ok(response) => Some(Ok(GalleryItem::new(link, response))),
+                    Err(e) => Some(Err(e.into())),
+                }
+            }
+
+            _ => None,
+        }
+    }
+
+    fn advance_by(&mut self, n: usize) -> crate::Result<()> {
+        self.idx += n;
         Ok(())
-    }
-}
-
-impl Iterator for ImgurMultipleGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let image = self.images.next()?;
-        match self.client.get(&image.link).send() {
-            Ok(response) => Some(Ok(GalleryItem::new(image.link, response))),
-            Err(e) => Some(Err(e.into())),
-        }
-    }
-}
-
-pub struct ImgurSingleGallery {
-    client: Client,
-    image: Option<ImageModel>,
-}
-
-impl Gallery for ImgurSingleGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
-        if skip > 0 {
-            self.image = None;
-        }
-        Ok(())
-    }
-}
-
-impl Iterator for ImgurSingleGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let image = self.image.take()?;
-        match self.client.get(&image.link).send() {
-            Ok(response) => Some(Ok(GalleryItem::new(image.link, response))),
-            Err(e) => Some(Err(e.into())),
-        }
     }
 }
 

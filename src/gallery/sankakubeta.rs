@@ -46,53 +46,49 @@ struct Image {
 
 // https://beta.sankakucomplex.com/?tags=slave%20sweat%20welts
 
-pub struct SankakuBeta;
+pub fn extract(url: &str) -> crate::Result<SankakuBetaGallery> {
+    // I doubt we'll see hashes at the end of these urls, but who knows?
+    let url = url.trim_end_matches('#');
+    let tags = Tags::try_from_url(url, "%20").ok_or_else(|| {
+        Error::Unsupported(
+            UnsupportedError::Route,
+            String::from("Sankaku urls must have one or more tags"),
+        )
+    })?;
 
-impl ReadGallery for SankakuBeta {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        // I doubt we'll see hashes at the end of these urls, but who knows?
-        let url = url.trim_end_matches('#');
-        let tags = Tags::try_from_url(url, "%20").ok_or_else(|| {
-            Error::Unsupported(
-                UnsupportedError::Route,
-                String::from("Sankaku urls must have one or more tags"),
-            )
-        })?;
+    // We need to sign in to get the goodies.
+    let config = Configuration::init();
+    let username = config.get_config(Key::SankakuUser)?;
+    let password = config.get_config(Key::SankakuPass)?;
+    let client = build_client()?;
 
-        // We need to sign in to get the goodies.
-        let config = Configuration::init();
-        let username = config.get_config(Key::SankakuUser)?;
-        let password = config.get_config(Key::SankakuPass)?;
-        let client = build_client()?;
+    // This process pulls both the access and refresh token from the login response,
+    // but according to my research the access token will last something like 48 hours.
+    // In other words, we really have no need of the refresh token.
+    let LoginResponse {
+        access_token,
+        refresh_token,
+        ..
+    } = client
+        .post("https://capi-v2.sankakucomplex.com/auth/token")
+        .json(&LoginRequest {
+            login: &username,
+            password: &password,
+        })
+        .send()?
+        .json()?;
 
-        // This process pulls both the access and refresh token from the login response,
-        // but according to my research the access token will last something like 48 hours.
-        // In other words, we really have no need of the refresh token.
-        let LoginResponse {
-            access_token,
-            refresh_token,
-            ..
-        } = client
-            .post("https://capi-v2.sankakucomplex.com/auth/token")
-            .json(&LoginRequest {
-                login: &username,
-                password: &password,
-            })
-            .send()?
-            .json()?;
-
-        Ok(Box::new(SankakuBetaGallery {
-            client: build_client()?,
-            tags,
-            count: 0,
-            queue: VecDeque::new(),
-            next: None,
-            has_started: false,
-            is_complete: false,
-            access_token,
-            refresh_token,
-        }))
-    }
+    Ok(SankakuBetaGallery {
+        client: build_client()?,
+        tags,
+        count: 0,
+        queue: VecDeque::new(),
+        next: None,
+        has_started: false,
+        is_complete: false,
+        access_token,
+        refresh_token,
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -142,7 +138,7 @@ impl SankakuBetaGallery {
 }
 
 impl Gallery for SankakuBetaGallery {
-    fn apply_skip(&mut self, mut skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, mut skip: usize) -> crate::Result<()> {
         loop {
             if skip == 0 {
                 return Ok(());
@@ -164,12 +160,8 @@ impl Gallery for SankakuBetaGallery {
             }
         }
     }
-}
 
-impl Iterator for SankakuBetaGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         if self.is_complete {
             return None;
         }

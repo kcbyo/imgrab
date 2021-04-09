@@ -1,26 +1,16 @@
 use super::prelude::*;
 use crate::tags::Tags;
 
-pub struct Rule34;
+pub fn extract(url: &str) -> crate::Result<Rule34Gallery> {
+    let url = url.trim_end_matches('#');
+    let tags = Tags::try_from_url(url, "+").ok_or_else(|| {
+        Error::Unsupported(
+            UnsupportedError::Route,
+            String::from("Rule34 urls must have one or more tags"),
+        )
+    })?;
 
-impl Rule34 {
-    pub fn new() -> Self {
-        Rule34
-    }
-}
-
-impl ReadGallery for Rule34 {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let url = url.trim_end_matches('#');
-        let tags = Tags::try_from_url(url, "+").ok_or_else(|| {
-            Error::Unsupported(
-                UnsupportedError::Route,
-                String::from("Rule34 urls must have one or more tags"),
-            )
-        })?;
-
-        Ok(Box::new(Rule34Gallery::new(tags)))
-    }
+    Ok(Rule34Gallery::new(tags))
 }
 
 pub struct Rule34Gallery {
@@ -87,7 +77,7 @@ impl Rule34Gallery {
 }
 
 impl Gallery for Rule34Gallery {
-    fn apply_skip(&mut self, mut skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, mut skip: usize) -> crate::Result<()> {
         loop {
             if skip == 0 {
                 return Ok(());
@@ -109,12 +99,8 @@ impl Gallery for Rule34Gallery {
             }
         }
     }
-}
 
-impl Iterator for Rule34Gallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         // This process is familiar to me at this point, but the basic plan is as follows: grab a
         // set of links from the main page and store those in a fifo queue. On each subsequent
         // call to the iterator, either pop an item off the queue or refill the queue and then

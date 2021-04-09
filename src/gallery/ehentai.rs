@@ -2,99 +2,88 @@ use std::collections::{HashMap, VecDeque};
 
 use regex::Regex;
 
-use crate::gallery::prelude::*;
+use crate::{
+    config::{Configuration, Key},
+    gallery::prelude::*,
+};
 
-pub struct EHentai {
-    username: String,
-    password: String,
-}
+fn configure_client(username: &str, password: &str) -> crate::Result<Client> {
+    use serde::Serialize;
 
-impl EHentai {
-    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
-        EHentai {
-            username: username.into(),
-            password: password.into(),
-        }
+    // This struct looks ridiculous, but it represents the form post required to successfully
+    // authenticate to e-hentai's back end. God knows what all this crap is for.
+    #[derive(Serialize)]
+    struct Form<'a> {
+        #[serde(rename = "CookieDate")]
+        cookie_date: usize,
+        b: &'static str,
+        bt: &'static str,
+        #[serde(rename = "UserName")]
+        username: &'a str,
+        #[serde(rename = "PassWord")]
+        password: &'a str,
+        ipb_login_submit: &'static str,
     }
 
-    fn initialize_client(&self) -> crate::Result<Client> {
-        use serde::Serialize;
-
-        // This struct looks ridiculous, but it represents the form post required to successfully
-        // authenticate to e-hentai's back end. God knows what all this crap is for.
-        #[derive(Serialize)]
-        struct Form<'a> {
-            #[serde(rename = "CookieDate")]
-            cookie_date: usize,
-            b: &'static str,
-            bt: &'static str,
-            #[serde(rename = "UserName")]
-            username: &'a str,
-            #[serde(rename = "PassWord")]
-            password: &'a str,
-            ipb_login_submit: &'static str,
-        }
-
-        impl Form<'_> {
-            fn new<'a>(username: &'a str, password: &'a str) -> Form<'a> {
-                Form {
-                    cookie_date: 1,
-                    b: "d",
-                    bt: "1-1",
-                    username,
-                    password,
-                    ipb_login_submit: "Login!",
-                }
+    impl Form<'_> {
+        fn new<'a>(username: &'a str, password: &'a str) -> Form<'a> {
+            Form {
+                cookie_date: 1,
+                b: "d",
+                bt: "1-1",
+                username,
+                password,
+                ipb_login_submit: "Login!",
             }
         }
-
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post("https://forums.e-hentai.org/index.php?act=Login&CODE=01")
-            .form(&Form::new(self.username.as_ref(), self.password.as_ref()))
-            .send()?;
-
-        let cookies = read_cookies(&response);
-        build_client(cookies)
     }
+
+    let client = reqwest::blocking::Client::new();
+    let response = client
+        .post("https://forums.e-hentai.org/index.php?act=Login&CODE=01")
+        .form(&Form::new(username, password))
+        .send()?;
+
+    let cookies = read_cookies(&response);
+    build_client(cookies)
 }
 
-impl ReadGallery for EHentai {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        // So, one ugly fact about the e-hentai implementation is that the only way to get
-        // full-sized images from e-hentai is by logging in. I've already figured out (read:
-        // implemented in another program) their authentication mechanism, so it's not that
-        // big a deal, but I *am* gonna split that out into a different function from the
-        // initializer for the gallery itself. The reader will do the login here, then pass
-        // the (logged-in) client to the gallery.
+pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
+    // So, one ugly fact about the e-hentai implementation is that the only way to get
+    // full-sized images from e-hentai is by logging in. I've already figured out (read:
+    // implemented in another program) their authentication mechanism, so it's not that
+    // big a deal, but I *am* gonna split that out into a different function from the
+    // initializer for the gallery itself. The reader will do the login here, then pass
+    // the (logged-in) client to the gallery.
 
-        let client = self.initialize_client()?;
+    let config = Configuration::init();
+    let username = config.get_config(Key::EHentaiUser)?;
+    let password = config.get_config(Key::EHentaiPass)?;
+    let client = configure_client(username, password)?;
 
-        // Before we begin, we need to grab some gallery metadata: specifically, we need the
-        // page size and the total image count for the gallery. While we're at it, we may as
-        // well also grab the first batch of images, too.
-        let page_content = client.get(url).send()?.text()?;
-        let (_page_size, gallery_size) = read_meta(url, &page_content)?;
-        let image_page_pattern = Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap();
-        let queue: VecDeque<_> = image_page_pattern
-            .captures_iter(&page_content)
-            .map(|s| s.get(0).unwrap().as_str().into())
-            .collect();
+    // Before we begin, we need to grab some gallery metadata: specifically, we need the
+    // page size and the total image count for the gallery. While we're at it, we may as
+    // well also grab the first batch of images, too.
+    let page_content = client.get(url).send()?.text()?;
+    let (_page_size, gallery_size) = read_meta(url, &page_content)?;
+    let image_page_pattern = Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap();
+    let queue: VecDeque<_> = image_page_pattern
+        .captures_iter(&page_content)
+        .map(|s| s.get(0).unwrap().as_str().into())
+        .collect();
 
-        Ok(Box::new(EHentaiGallery {
-            client,
-            base_url: url.into(),
-            page: 1,
-            count: queue.len(),
-            queue,
-            // page_size,
-            gallery_size,
-            image_page_pattern,
-            image_url_pattern: Regex::new(r#"id="img" src="([^"]+)"#).unwrap(),
-            image_url_pattern_fullsize: Regex::new(r#"<a href="([^"]+)">Download original"#)
-                .unwrap(),
-        }))
-    }
+    Ok(EHentaiGallery {
+        client,
+        base_url: url.into(),
+        page: 1,
+        count: queue.len(),
+        queue,
+        // page_size,
+        gallery_size,
+        image_page_pattern,
+        image_url_pattern: Regex::new(r#"id="img" src="([^"]+)"#).unwrap(),
+        image_url_pattern_fullsize: Regex::new(r#"<a href="([^"]+)">Download original"#).unwrap(),
+    })
 }
 
 /// An image url in a given size.
@@ -178,7 +167,7 @@ impl EHentaiGallery {
 }
 
 impl Gallery for EHentaiGallery {
-    fn apply_skip(&mut self, mut skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, mut skip: usize) -> crate::Result<()> {
         loop {
             if skip == 0 {
                 return Ok(());
@@ -204,12 +193,8 @@ impl Gallery for EHentaiGallery {
             self.page += 1;
         }
     }
-}
 
-impl Iterator for EHentaiGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         // E-hentai has some peculiarities re: its gallery design that make the way we do things
         // here a little strange. For a start, you'll never be shown an empty gallery page. An
         // attempt to increment your position past the final page of a gallery will result in

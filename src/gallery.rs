@@ -1,51 +1,25 @@
 use std::io::Write;
 
-mod ehentai;
-mod fitnakedgirls;
-mod flist;
-mod gelbooru;
-mod girlswithmuscle;
-mod hentai_foundry;
-mod imgur;
-mod nhentai;
-mod nsfwalbum;
-mod rule34;
-mod sankaku;
-mod sankakubeta;
+pub mod ehentai;
+pub mod fitnakedgirls;
+pub mod flist;
+pub mod gelbooru;
+pub mod girlswithmuscle;
+pub mod hentai_foundry;
+pub mod imgur;
+pub mod nhentai;
+pub mod nsfwalbum;
+pub mod rule34;
+pub mod sankakubeta;
 
 use crate::storage::NameContext;
-
-pub use self::{
-    ehentai::EHentai,
-    fitnakedgirls::FitNakedGirls,
-    flist::FList,
-    gelbooru::Gelbooru,
-    girlswithmuscle::GirlsWithMuscle,
-    hentai_foundry::HentaiFoundry,
-    imgur::{ImgurAlbum, ImgurGallery, ImgurSingle},
-    nhentai::NHentai,
-    nsfwalbum::NsfwAlbum,
-    rule34::Rule34,
-    sankaku::Sankaku,
-    sankakubeta::SankakuBeta,
-};
 
 pub static USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0";
 
-pub type DynamicGallery = Box<(dyn Gallery + 'static)>;
-
-pub trait ReadGallery: Sized {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery>;
-}
-
-pub trait Gallery: Iterator<Item = crate::Result<GalleryItem>> {
-    /// Applies a skip value to the underlying gallery.
-    ///
-    /// A skip offset MUST be applied without iterating the underlyinggallery, because
-    // doing so incurs network costs and may trigger throttling behaviors from the gallery
-    // host.
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()>;
+pub trait Gallery {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>>;
+    fn advance_by(&mut self, n: usize) -> crate::Result<()>;
 }
 
 /// An item parsed from a gallery
@@ -114,7 +88,7 @@ fn read_filename(disposition: &reqwest::header::HeaderValue) -> Option<String> {
 mod prelude {
     pub use crate::{
         error::{Error, ExtractionFailure, UnsupportedError},
-        gallery::{DynamicGallery, Gallery, GalleryItem, ReadGallery},
+        gallery::{Gallery, GalleryItem},
     };
     pub use regex::Regex;
     pub use reqwest::blocking::{Client, Request, Response};

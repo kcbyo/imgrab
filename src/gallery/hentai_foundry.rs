@@ -66,25 +66,21 @@ impl SetFiltersRequest {
     }
 }
 
-pub struct HentaiFoundry;
+pub fn extract(url: &str) -> crate::Result<HentaiFoundryUserGallery> {
+    let mut segments = url.split('/');
+    let _ = segments.find(|&x| x == "user");
 
-impl ReadGallery for HentaiFoundry {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let mut segments = url.split('/');
-        let _ = segments.find(|&x| x == "user");
-
-        if let Some(user) = segments.next() {
-            user_gallery(&format!(
-                "https://www.hentai-foundry.com/pictures/user/{}",
-                user
-            ))
-        } else {
-            Err(Error::Unsupported(UnsupportedError::Route, url.into()))
-        }
+    if let Some(user) = segments.next() {
+        user_gallery(&format!(
+            "https://www.hentai-foundry.com/pictures/user/{}",
+            user
+        ))
+    } else {
+        Err(Error::Unsupported(UnsupportedError::Route, url.into()))
     }
 }
 
-fn user_gallery(url: &str) -> crate::Result<DynamicGallery> {
+fn user_gallery(url: &str) -> crate::Result<HentaiFoundryUserGallery> {
     // First, build the client and get initial content using the enterAgree=1 param.
     // This content contains nothing good. We're going to use it to grab a CSRF token
     // and submit a filter update. Kind of silly we need to do this every time.
@@ -113,7 +109,7 @@ fn user_gallery(url: &str) -> crate::Result<DynamicGallery> {
     let image_selector = Selector::parse("div.galleryViewTable a.thumbLink").unwrap();
     let queue = read_links(&image_selector, &content);
 
-    Ok(Box::new(HentaiFoundryUserGallery {
+    Ok(HentaiFoundryUserGallery {
         client,
         base_url: base_url.into(),
         pages,
@@ -122,7 +118,7 @@ fn user_gallery(url: &str) -> crate::Result<DynamicGallery> {
         image_pattern,
         full_image_pattern,
         image_selector,
-    }))
+    })
 }
 
 pub struct HentaiFoundryUserGallery {
@@ -163,16 +159,12 @@ impl HentaiFoundryUserGallery {
 }
 
 impl Gallery for HentaiFoundryUserGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
         self.skip = Some(skip);
         Ok(())
     }
-}
 
-impl Iterator for HentaiFoundryUserGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         // These two if blocks represent a substantial amount of recursion, but
         // who the hell has a gallery that big?
         if self.queue.is_empty() {
@@ -268,22 +260,14 @@ fn build_client() -> crate::Result<Client> {
 
 #[cfg(test)]
 mod tests {
-    use super::HentaiFoundry;
-    use crate::gallery::ReadGallery;
-
     #[test]
     fn can_read_profile_links() {
-        assert!(HentaiFoundry
-            .read("https://www.hentai-foundry.com/user/AndavaNSFW")
-            .is_ok());
-        assert!(HentaiFoundry
-            .read("https://www.hentai-foundry.com/user/AndavaNSFW/profile")
-            .is_ok());
+        assert!(super::extract("https://www.hentai-foundry.com/user/AndavaNSFW").is_ok());
+        assert!(super::extract("https://www.hentai-foundry.com/user/AndavaNSFW/profile").is_ok());
     }
 
     #[test]
     fn can_read_profile_gallery_links() {
-        let result = HentaiFoundry.read("https://www.hentai-foundry.com/pictures/user/AndavaNSFW");
-        assert!(result.is_ok());
+        assert!(super::extract("https://www.hentai-foundry.com/pictures/user/AndavaNSFW").is_ok());
     }
 }

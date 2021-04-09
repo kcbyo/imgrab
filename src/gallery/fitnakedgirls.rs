@@ -2,17 +2,13 @@ use super::prelude::*;
 
 use std::vec;
 
-pub struct FitNakedGirls;
-
-impl ReadGallery for FitNakedGirls {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let client = build_client()?;
-        let content = client.get(url).send()?.text()?;
-        Ok(Box::new(FngGallery {
-            client,
-            images: extract_images(&content).into_iter(),
-        }))
-    }
+pub fn extract(url: &str) -> crate::Result<FngGallery> {
+    let client = build_client()?;
+    let content = client.get(url).send()?.text()?;
+    Ok(FngGallery {
+        client,
+        images: extract_images(&content).into_iter(),
+    })
 }
 
 fn extract_images(content: &str) -> Vec<String> {
@@ -38,17 +34,13 @@ pub struct FngGallery {
 }
 
 impl Gallery for FngGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
         let buf: Vec<_> = self.images.by_ref().skip(skip).collect();
         self.images = buf.into_iter();
         Ok(())
     }
-}
 
-impl Iterator for FngGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         self.images.next().map(|url| {
             self.client
                 .get(&url)

@@ -74,47 +74,41 @@ impl Display for ImageFormat {
     }
 }
 
-pub struct NHentai;
+pub fn extract(url: &str) -> crate::Result<NHentaiGallery> {
+    let client = Client::builder().user_agent(super::USER_AGENT).build()?;
 
-impl ReadGallery for NHentai {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let client = Client::builder()
-            .user_agent(super::USER_AGENT)
-            .build()?;
+    // The gallery page serves no real purpose for us, because each of the image pages
+    // includes a json packet which describes the book we're trying to download. Once we
+    // have the gallery info, we'll store the media id and image formats for future use.
 
-        // The gallery page serves no real purpose for us, because each of the image pages
-        // includes a json packet which describes the book we're trying to download. Once we
-        // have the gallery info, we'll store the media id and image formats for future use.
-
-        let url = url.to_string() + "/1/";
-        let document = client.get(&url).send()?.text()?;
-        let pattern = Regex::new(r#"JSON\.parse\("(.+?)"\)"#).unwrap();
-        let packet = pattern
-            .captures(&document)
-            .and_then(|x| x.get(1))
-            .ok_or_else(|| {
-                Error::Extraction(
-                    ExtractionFailure::Metadata,
-                    "Unable to get gallery metadata".into(),
-                )
-            })?
-            .as_str()
-            .replace("\\u0022", "\"");
-
-        let gallery_info: GalleryInfo = serde_json::from_str(&packet).map_err(|e| {
+    let url = url.to_string() + "/1/";
+    let document = client.get(&url).send()?.text()?;
+    let pattern = Regex::new(r#"JSON\.parse\("(.+?)"\)"#).unwrap();
+    let packet = pattern
+        .captures(&document)
+        .and_then(|x| x.get(1))
+        .ok_or_else(|| {
             Error::Extraction(
                 ExtractionFailure::Metadata,
-                format!("Unable to parse gallery data: {}", e),
+                "Unable to get gallery metadata".into(),
             )
-        })?;
+        })?
+        .as_str()
+        .replace("\\u0022", "\"");
 
-        Ok(Box::new(NHentaiGallery {
-            client,
-            media_id: gallery_info.media_id,
-            queue: gallery_info.images.pages,
-            current_page: 0,
-        }))
-    }
+    let gallery_info: GalleryInfo = serde_json::from_str(&packet).map_err(|e| {
+        Error::Extraction(
+            ExtractionFailure::Metadata,
+            format!("Unable to parse gallery data: {}", e),
+        )
+    })?;
+
+    Ok(NHentaiGallery {
+        client,
+        media_id: gallery_info.media_id,
+        queue: gallery_info.images.pages,
+        current_page: 0,
+    })
 }
 
 pub struct NHentaiGallery {
@@ -136,7 +130,7 @@ impl NHentaiGallery {
 }
 
 impl Gallery for NHentaiGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
         if skip < self.queue.len() {
             self.queue.drain(..skip);
             self.current_page += skip as i32;
@@ -145,12 +139,8 @@ impl Gallery for NHentaiGallery {
         }
         Ok(())
     }
-}
 
-impl Iterator for NHentaiGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         self.next_image_url().map(|url| {
             self.client
                 .get(&url)

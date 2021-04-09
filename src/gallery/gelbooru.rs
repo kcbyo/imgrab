@@ -3,36 +3,28 @@ use std::collections::VecDeque;
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::gallery::prelude::*;
+use crate::{
+    config::{Configuration, Key},
+    gallery::prelude::*,
+};
 
-pub struct Gelbooru {
-    user_id: String,
-}
+pub fn extract(url: &str) -> crate::Result<GelbooruGallery> {
+    let config = Configuration::init();
+    let user_id = config.get_config(Key::GelbooruUser)?.into();
 
-impl Gelbooru {
-    pub fn new(user_id: impl AsRef<str>) -> Self {
-        Self {
-            user_id: user_id.as_ref().into(),
-        }
-    }
-}
+    // The user-supplied URL will presumably be copied from the web interface, but we are
+    // really not interested in the url itself. We pretty much only want the search tags.
+    let tags = read_tags(url)?.into();
 
-impl ReadGallery for Gelbooru {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        // The user-supplied URL will presumably be copied from the web interface, but we are
-        // really not interested in the url itself. We pretty much only want the search tags.
-        let tags = read_tags(url)?.into();
-
-        // Once we have the search tags, we need... Fuck all. Let's go.
-        Ok(Box::new(GelbooruGallery {
-            user_id: self.user_id,
-            client: build_client()?,
-            tags,
-            queue: VecDeque::new(),
-            page: 0,
-            is_complete: false,
-        }))
-    }
+    // Once we have the search tags, we need... Fuck all. Let's go.
+    Ok(GelbooruGallery {
+        user_id,
+        client: build_client()?,
+        tags,
+        queue: VecDeque::new(),
+        page: 0,
+        is_complete: false,
+    })
 }
 
 pub struct GelbooruGallery {
@@ -62,7 +54,7 @@ impl GelbooruGallery {
 }
 
 impl Gallery for GelbooruGallery {
-    fn apply_skip(&mut self, mut skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, mut skip: usize) -> crate::Result<()> {
         loop {
             if skip == 0 {
                 return Ok(());
@@ -81,12 +73,8 @@ impl Gallery for GelbooruGallery {
             }
         }
     }
-}
 
-impl Iterator for GelbooruGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         if self.is_complete {
             return None;
         }

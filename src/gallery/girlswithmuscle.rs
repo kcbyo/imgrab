@@ -1,22 +1,18 @@
 use super::prelude::*;
 
-pub struct GirlsWithMuscle;
-
-impl ReadGallery for GirlsWithMuscle {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let name = read_name(url)?.into();
-        Ok(Box::new(GwmGallery {
-            client: build_client()?,
-            name,
-            page: 1,
-            image_id_pattern: Regex::new(r#"imgid(\d+)"#).unwrap(),
-            data_url_pattern: Regex::new(r#"images/full/\d+\.[^"]+"#).unwrap(),
-            queue: VecDeque::new(),
-            last_queue: VecDeque::new(),
-            is_complete: false,
-            skip: 0,
-        }))
-    }
+pub fn extract(url: &str) -> crate::Result<GwmGallery> {
+    let name = read_name(url)?.into();
+    Ok(GwmGallery {
+        client: build_client()?,
+        name,
+        page: 1,
+        image_id_pattern: Regex::new(r#"imgid(\d+)"#).unwrap(),
+        data_url_pattern: Regex::new(r#"images/full/\d+\.[^"]+"#).unwrap(),
+        queue: VecDeque::new(),
+        last_queue: VecDeque::new(),
+        is_complete: false,
+        skip: 0,
+    })
 }
 
 pub struct GwmGallery {
@@ -74,16 +70,12 @@ impl GwmGallery {
 }
 
 impl Gallery for GwmGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
         self.skip = skip;
         Ok(())
     }
-}
 
-impl Iterator for GwmGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         if self.is_complete {
             return None;
         }

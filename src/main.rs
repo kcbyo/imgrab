@@ -1,7 +1,6 @@
 use std::{
     collections::HashSet,
     env,
-    error::Error,
     fs::{self, File},
     path::{Path, PathBuf},
 };
@@ -14,15 +13,50 @@ mod storage;
 mod tags;
 mod waiter;
 
+use error::{Error, UnsupportedError};
 use fmtsize::{Conventional, FmtSize};
-use gallery::{DynamicGallery, Gallery, GalleryItem};
+use gallery::Gallery;
 use options::Opt;
+use url::Url;
 
 pub type Result<T, E = error::Error> = std::result::Result<T, E>;
 
-fn main() -> Result<()> {
-    let opt = Opt::from_args();
-    let gallery = identify(&opt)?;
+fn main() {
+    if let Err(e) = run(&Opt::from_args()) {
+        eprintln!("{}", e);
+    }
+}
+
+fn run(opt: &Opt) -> crate::Result<()> {
+    use gallery::*;
+
+    let parsed_url = Url::parse(opt.url())?;
+    let domain = parsed_url
+        .domain()
+        .ok_or_else(|| Error::Unsupported(UnsupportedError::Route, opt.url().into()))?;
+
+    match domain {
+        "beta.sankakucomplex.com" => download(opt, sankakubeta::extract(opt.url())?),
+        "e-hentai.org" => download(opt, ehentai::extract(opt.url())?),
+        "fitnakedgirls.com" => download(opt, fitnakedgirls::extract(opt.url())?),
+        "gelbooru.com" => download(opt, gelbooru::extract(opt.url())?),
+        "imgur.com" => download(opt, imgur::extract(opt.url())?),
+        "nhentai.net" => download(opt, nhentai::extract(opt.url())?),
+        "nsfwalbum.com" => download(opt, nsfwalbum::extract(opt.url())?),
+        "rule34.xxx" => download(opt, rule34::extract(opt.url())?),
+        "www.f-list.net" => download(opt, flist::extract(opt.url())?),
+        "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract(opt.url())?),
+        "www.hentai-foundry.com" => download(opt, hentai_foundry::extract(opt.url())?),
+
+        other => Err(Error::Unsupported(UnsupportedError::Domain, other.into())),
+    }
+}
+
+fn download(opt: &Opt, mut gallery: impl Gallery) -> crate::Result<()> {
+    if let Some(skip) = opt.skip {
+        gallery.advance_by(skip)?;
+    }
+
     let current_dir = env::current_dir()?;
     let overwrite = opt.overwrite();
     let waiter = opt
@@ -37,17 +71,11 @@ fn main() -> Result<()> {
     let mut bytes_written = 0;
     let idx_offset = opt.skip.unwrap_or_default();
 
-    for (idx, item) in apply_paging(&opt, gallery)?.enumerate() {
-        let idx = idx + idx_offset;
+    while let Some(item) = gallery.next() {
+        let idx = count + idx_offset;
         waiter.wait();
 
-        // We don't necessarily want to bail on just any item error.
         match item {
-            Err(e) => match e.source() {
-                Some(source) => eprintln!("{} Warning: {}\n  {}", idx + 1, e, source),
-                None => eprintln!("{} Warning: {}", idx + 1, e),
-            },
-
             Ok(mut item) => {
                 let path = storage.create_path(item.context());
 
@@ -65,6 +93,12 @@ fn main() -> Result<()> {
                     println!("{} {}", idx + 1, path.display());
                 }
             }
+
+            Err(e) => eprintln!("{} Warning: {}", idx + 1, e),
+        }
+
+        if is_complete(count, opt.take) {
+            break;
         }
     }
 
@@ -73,6 +107,7 @@ fn main() -> Result<()> {
         count,
         bytes_written.fmt_size(Conventional),
     );
+
     Ok(())
 }
 
@@ -82,68 +117,6 @@ fn read_existing_files(path: impl AsRef<Path>) -> Result<HashSet<PathBuf>> {
         .collect())
 }
 
-fn identify(opt: &Opt) -> Result<DynamicGallery> {
-    use config::{Configuration, Key};
-    use error::{Error, UnsupportedError};
-    use gallery::{
-        EHentai, FList, FitNakedGirls, Gelbooru, GirlsWithMuscle, HentaiFoundry, ImgurAlbum,
-        ImgurGallery, ImgurSingle, NHentai, NsfwAlbum, ReadGallery, Rule34, Sankaku, SankakuBeta,
-    };
-    use url::Url;
-
-    let address = Url::parse(opt.url())?;
-    match address.domain() {
-        Some("beta.sankakucomplex.com") => SankakuBeta.read(opt.url()),
-        Some("e-hentai.org") => {
-            let config = Configuration::init();
-            let username = config.get_config(Key::EHentaiUser)?;
-            let password = config.get_config(Key::EHentaiPass)?;
-            EHentai::new(username, password).read(opt.url())
-        }
-
-        Some("fitnakedgirls.com") => FitNakedGirls.read(opt.url()),
-
-        Some("gelbooru.com") => {
-            let config = Configuration::init();
-            let user_id = config.get_config(Key::GelbooruUser)?;
-            Gelbooru::new(user_id).read(opt.url())
-        }
-
-        Some("www.hentai-foundry.com") => HentaiFoundry.read(opt.url()),
-        Some("www.girlswithmuscle.com") => GirlsWithMuscle.read(opt.url()),
-
-        // Imgur presents three different types of galleries, which are implemented separately
-        Some("imgur.com") if address.path().starts_with("/a/") => ImgurAlbum.read(opt.url()),
-        Some("imgur.com") if address.path().starts_with("/gallery/") => {
-            ImgurGallery.read(opt.url())
-        }
-        Some("imgur.com") => ImgurSingle.read(opt.url()),
-
-        Some("nhentai.net") => NHentai.read(opt.url()),
-        Some("nsfwalbum.com") => NsfwAlbum.read(opt.url()),
-        Some("rule34.xxx") => Rule34::new().read(opt.url()),
-        Some("www.f-list.net") => FList.read(opt.url()),
-        Some("chan.sankakucomplex.com") => Sankaku.read(opt.url()),
-
-        // Our first error case is an unsupported domain, but the second is just an invalid url.
-        Some(domain) => Err(Error::Unsupported(UnsupportedError::Domain, domain.into())),
-        None => Err(Error::Unsupported(
-            UnsupportedError::Route,
-            opt.url().into(),
-        )),
-    }
-}
-
-fn apply_paging(
-    opt: &Opt,
-    mut gallery: Box<dyn Gallery>,
-) -> Result<Box<dyn Iterator<Item = Result<GalleryItem>>>> {
-    if let Some(skip) = opt.skip {
-        gallery.apply_skip(skip)?;
-    }
-
-    match opt.take {
-        Some(take) => Ok(Box::new(gallery.take(take))),
-        None => Ok(Box::new(gallery)),
-    }
+fn is_complete(count: usize, take: Option<usize>) -> bool {
+    take.map(|take| take == count).unwrap_or_default()
 }

@@ -1,6 +1,6 @@
 [package]
 name = "imgrab"
-version = "0.3.10"
+version = "0.4.0"
 authors = ["Keep Calm <keepcalmandbyo@gmail.com>"]
 edition = "2018"
 

@@ -5,36 +5,32 @@ use serde::Deserialize;
 
 use crate::gallery::prelude::*;
 
-pub struct FList;
+pub fn extract(url: &str) -> crate::Result<FListGallery> {
+    // This ought to be basically the easiest implementation yet. My compliments to FList,
+    // despite they're not exactly my favorite bunch of people to deal with.
 
-impl ReadGallery for FList {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        // This ought to be basically the easiest implementation yet. My compliments to FList,
-        // despite they're not exactly my favorite bunch of people to deal with.
-
-        #[derive(Debug, Deserialize)]
-        struct Template {
-            #[serde(rename = "images")]
-            profile: VecDeque<Image>,
-            error: String,
-        }
-
-        let client = build_client()?;
-        let page_content = client.get(url).send()?.text()?;
-        let character_id = read_character_id(url, &page_content)?;
-        let inline = read_inlines(&page_content).unwrap_or_default();
-        let Template { profile, .. } = client
-            .post("https://www.f-list.net/json/profile-images.json")
-            .form(&[("character_id", character_id)])
-            .send()?
-            .json()?;
-
-        Ok(Box::new(FListGallery {
-            client,
-            inline,
-            profile,
-        }))
+    #[derive(Debug, Deserialize)]
+    struct Template {
+        #[serde(rename = "images")]
+        profile: VecDeque<Image>,
+        error: String,
     }
+
+    let client = build_client()?;
+    let page_content = client.get(url).send()?.text()?;
+    let character_id = read_character_id(url, &page_content)?;
+    let inline = read_inlines(&page_content).unwrap_or_default();
+    let Template { profile, .. } = client
+        .post("https://www.f-list.net/json/profile-images.json")
+        .form(&[("character_id", character_id)])
+        .send()?
+        .json()?;
+
+    Ok(FListGallery {
+        client,
+        inline,
+        profile,
+    })
 }
 
 pub struct FListGallery {
@@ -66,7 +62,7 @@ impl FListGallery {
 }
 
 impl Gallery for FListGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
         use std::cmp;
         let remaining = skip
             - self
@@ -77,11 +73,8 @@ impl Gallery for FListGallery {
         self.profile.drain(..remaining);
         Ok(())
     }
-}
 
-impl Iterator for FListGallery {
-    type Item = crate::Result<GalleryItem>;
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         let url = self.next_inline().or_else(|| self.next_profile())?;
         match self.client.get(&url).send() {
             Ok(response) => Some(Ok(GalleryItem::new(url, response))),

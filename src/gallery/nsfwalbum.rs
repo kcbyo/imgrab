@@ -6,21 +6,17 @@ use regex::Regex;
 
 // FIXME: This almost works, but it's actually downloading thumbnails instead of full-size images.
 
-pub struct NsfwAlbum;
+pub fn extract(url: &str) -> crate::Result<NsfwAlbumGallery> {
+    let client = build_client()?;
+    let pattern = Regex::new(r#"data-img-id="(\d+)""#).unwrap();
+    let content = client.get(url).send()?.text()?;
 
-impl ReadGallery for NsfwAlbum {
-    fn read(self, url: &str) -> crate::Result<DynamicGallery> {
-        let client = build_client()?;
-        let pattern = Regex::new(r#"data-img-id="(\d+)""#).unwrap();
-        let content = client.get(url).send()?.text()?;
+    let images: Vec<_> = pattern
+        .captures_iter(&content)
+        .filter_map(|x| x.get(1).map(|x| x.as_str().to_owned()))
+        .collect();
 
-        let images: Vec<_> = pattern
-            .captures_iter(&content)
-            .filter_map(|x| x.get(1).map(|x| x.as_str().to_owned()))
-            .collect();
-
-        Ok(Box::new(NsfwAlbumGallery::new(client, images)))
-    }
+    Ok(NsfwAlbumGallery::new(client, images))
 }
 
 pub struct NsfwAlbumGallery {
@@ -70,17 +66,13 @@ impl NsfwAlbumGallery {
 }
 
 impl Gallery for NsfwAlbumGallery {
-    fn apply_skip(&mut self, skip: usize) -> crate::Result<()> {
+    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
         let images: Vec<_> = self.images.by_ref().skip(skip).collect();
         self.images = images.into_iter();
         Ok(())
     }
-}
 
-impl Iterator for NsfwAlbumGallery {
-    type Item = crate::Result<GalleryItem>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
         let id = self.images.next()?;
         let response = self
             .request_image(&id)
@@ -120,9 +112,7 @@ fn annihilate(giraffe: &str, salt: i32) -> String {
 }
 
 fn build_client() -> crate::Result<Client> {
-    Ok(Client::builder()
-        .user_agent(super::USER_AGENT)
-        .build()?)
+    Ok(Client::builder().user_agent(super::USER_AGENT).build()?)
 }
 
 #[cfg(test)]
