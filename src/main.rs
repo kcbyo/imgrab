@@ -7,6 +7,7 @@ use std::{
 
 mod config;
 mod error;
+mod format;
 mod gallery;
 mod options;
 mod storage;
@@ -15,6 +16,7 @@ mod waiter;
 
 use error::{Error, UnsupportedError};
 use fmtsize::{Conventional, FmtSize};
+use format::DurationFormat;
 use gallery::Gallery;
 use options::Opt;
 use url::Url;
@@ -113,7 +115,7 @@ fn download<T: Gallery>(
         "\n{} files ({})\n{}",
         count,
         bytes_written.fmt_size(Conventional),
-        elapsed,
+        elapsed.as_formatter(),
     );
 
     Ok(())
