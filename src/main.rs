@@ -112,7 +112,7 @@ fn download<T: Gallery>(
 
     let elapsed = chrono::Local::now().signed_duration_since(start_time);
     println!(
-        "\n{} files ({})\n{}",
+        "\n{} files ({})\nElapsed time {}",
         count,
         bytes_written.fmt_size(Conventional),
         elapsed.as_formatter(),
