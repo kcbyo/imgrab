@@ -87,26 +87,23 @@ fn download<T: Gallery>(
         match item {
             Ok(mut item) => {
                 let path = storage.create_path(item.context());
-
                 if !overwrite && existing_files.contains(&path) {
                     if let Some(filename) = filename_from_path(&path) {
                         println!("{} {} has already been downloaded", idx + 1, filename);
                     }
-                    count += 1;
-                    continue;
-                }
-
-                let target = File::create(&path)?;
-                count += 1;
-                bytes_written += item.write(target)?;
-                if let Some(filename) = filename_from_path(&path) {
-                    println!("{} {}", idx + 1, filename);
+                } else {
+                    let target = File::create(&path)?;
+                    bytes_written += item.write(target)?;
+                    if let Some(filename) = filename_from_path(&path) {
+                        println!("{} {}", idx + 1, filename);
+                    }
                 }
             }
 
             Err(e) => eprintln!("{} Warning: {}", idx + 1, e),
         }
 
+        count += 1;
         if is_complete(count, opt.take) {
             break;
         }
@@ -117,7 +114,7 @@ fn download<T: Gallery>(
         "\n{} files ({})\nElapsed time {}",
         count,
         bytes_written.fmt_size(Conventional),
-        elapsed.as_formatter(),
+        elapsed.into_formatter(),
     );
 
     Ok(())

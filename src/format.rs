@@ -3,11 +3,11 @@ use std::fmt::Display;
 use chrono::Duration;
 
 pub trait DurationFormat {
-    fn as_formatter(self) -> DurationFormatter;
+    fn into_formatter(self) -> DurationFormatter;
 }
 
 impl DurationFormat for Duration {
-    fn as_formatter(self) -> DurationFormatter {
+    fn into_formatter(self) -> DurationFormatter {
         DurationFormatter(self)
     }
 }
