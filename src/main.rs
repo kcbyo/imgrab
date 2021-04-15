@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashSet,
     env,
     fs::{self, File},
@@ -73,7 +74,7 @@ fn download<T: Gallery>(
         .unwrap_or_default();
 
     let mut storage = opt.storage_provider(&current_dir)?;
-    let existing_files = read_existing_files(&current_dir)?;
+    let existing_files = dbg!(read_existing_files(storage.path())?);
 
     let mut count = 0;
     let mut bytes_written = 0;
@@ -88,17 +89,18 @@ fn download<T: Gallery>(
                 let path = storage.create_path(item.context());
 
                 if !overwrite && existing_files.contains(&path) {
-                    if let Ok(path) = path.strip_prefix(&current_dir) {
-                        println!("{} {} has already been downloaded", idx + 1, path.display());
+                    if let Some(filename) = filename_from_path(&path) {
+                        println!("{} {} has already been downloaded", idx + 1, filename);
                     }
+                    count += 1;
                     continue;
                 }
 
                 let target = File::create(&path)?;
                 count += 1;
                 bytes_written += item.write(target)?;
-                if let Ok(path) = path.strip_prefix(&current_dir) {
-                    println!("{} {}", idx + 1, path.display());
+                if let Some(filename) = filename_from_path(&path) {
+                    println!("{} {}", idx + 1, filename);
                 }
             }
 
@@ -125,6 +127,10 @@ fn read_existing_files(path: impl AsRef<Path>) -> Result<HashSet<PathBuf>> {
     Ok(fs::read_dir(path)?
         .filter_map(|x| Some(x.ok()?.path()))
         .collect())
+}
+
+fn filename_from_path(path: &Path) -> Option<Cow<str>> {
+    path.file_name().map(|name| name.to_string_lossy())
 }
 
 fn is_complete(count: usize, take: Option<usize>) -> bool {

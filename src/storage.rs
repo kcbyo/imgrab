@@ -1,4 +1,7 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug)]
 pub struct StorageProvider {
@@ -38,6 +41,10 @@ impl StorageProvider {
         };
 
         self.path.join(&*name)
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 }
 
