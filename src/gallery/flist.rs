@@ -20,6 +20,8 @@ pub fn extract(url: &str) -> crate::Result<FListGallery> {
     let page_content = client.get(url).send()?.text()?;
     let character_id = read_character_id(url, &page_content)?;
     let inline = read_inlines(&page_content).unwrap_or_default();
+    let links = read_links(&page_content).unwrap_or_default();
+
     let Template { profile, .. } = client
         .post("https://www.f-list.net/json/profile-images.json")
         .form(&[("character_id", character_id)])
@@ -30,6 +32,7 @@ pub fn extract(url: &str) -> crate::Result<FListGallery> {
         client,
         inline,
         profile,
+        links,
     })
 }
 
@@ -37,6 +40,7 @@ pub struct FListGallery {
     client: Client,
     inline: VecDeque<Inline>,
     profile: VecDeque<Image>,
+    links: VecDeque<String>,
 }
 
 impl FListGallery {
@@ -63,14 +67,20 @@ impl FListGallery {
 
 impl Gallery for FListGallery {
     fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
-        use std::cmp;
-        let remaining = skip
-            - self
-                .inline
-                .drain(..cmp::min(skip, self.inline.len()))
-                .count();
-        let remaining = cmp::min(remaining, self.profile.len());
-        self.profile.drain(..remaining);
+        fn drain_by_skip<T>(queue: &mut VecDeque<T>, skip: usize) -> usize {
+            let len = queue.len();
+            if skip > len {
+                queue.clear();
+                skip - len
+            } else {
+                let _ = queue.drain(..skip);
+                0
+            }
+        }
+
+        let skip = drain_by_skip(&mut self.links, skip);
+        let skip = drain_by_skip(&mut self.inline, skip);
+        let _ = drain_by_skip(&mut self.profile, skip);
         Ok(())
     }
 
@@ -113,6 +123,16 @@ fn read_inlines(content: &str) -> Option<VecDeque<Inline>> {
     let captures = pattern.captures(content)?;
     let inlines: HashMap<&str, Inline> = serde_json::from_str(captures.get(1)?.as_str()).ok()?;
     Some(inlines.into_iter().map(|(_, v)| v).collect())
+}
+
+fn read_links(content: &str) -> Option<VecDeque<String>> {
+    let pattern = Regex::new(r"\[url=([^\]]+static.f-list.net/images/charimage/[^\]]+)\]").unwrap();
+    Some(
+        pattern
+            .captures_iter(content)
+            .map(|captures| captures.get(1).unwrap().as_str().into())
+            .collect(),
+    )
 }
 
 fn build_client() -> crate::Result<Client> {
