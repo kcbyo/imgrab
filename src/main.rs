@@ -21,6 +21,8 @@ use gallery::Gallery;
 use options::Opt;
 use url::Url;
 
+use crate::gallery::GalleryItem;
+
 pub type Result<T, E = error::Error> = std::result::Result<T, E>;
 
 fn main() {
@@ -38,17 +40,18 @@ fn run(opt: &Opt) -> crate::Result<()> {
         .ok_or_else(|| Error::Unsupported(UnsupportedError::Route, opt.url().into()))?;
 
     match domain {
-        "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
-        "e-hentai.org" => download(opt, ehentai::extract),
-        "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
-        "gelbooru.com" => download(opt, gelbooru::extract),
-        "imgur.com" => download(opt, imgur::extract),
-        "nhentai.net" => download(opt, nhentai::extract),
-        "nsfwalbum.com" => download(opt, nsfwalbum::extract),
-        "rule34.xxx" => download(opt, rule34::extract),
-        "www.f-list.net" => download(opt, flist::extract),
-        "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
-        "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
+        // "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
+        // "e-hentai.org" => download(opt, ehentai::extract),
+        // "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
+        // "gelbooru.com" => download(opt, gelbooru::extract),
+        // "imgur.com" => download(opt, imgur::extract),
+        // "nhentai.net" => download(opt, nhentai::extract),
+        // "nsfwalbum.com" => download(opt, nsfwalbum::extract),
+        // "rule34.xxx" => download(opt, rule34::extract),
+        // "www.f-list.net" => download(opt, flist::extract),
+        // "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
+        // "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
+        "thefitgirlz.com" => download(opt, thefitgirlz::extract),
 
         other => Err(Error::Unsupported(UnsupportedError::Domain, other.into())),
     }
@@ -95,8 +98,8 @@ fn download<T: Gallery>(
                         );
                     }
                 } else {
-                    let target = File::create(&path)?;
-                    bytes_written += item.write(target)?;
+                    let mut target = File::create(&path)?;
+                    bytes_written += item.write(&mut target)?;
                     if let Some(file_path) = pathdiff::diff_paths(&path, &current_dir) {
                         println!("{} {}", idx + 1, file_path.display());
                     }

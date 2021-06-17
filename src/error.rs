@@ -11,7 +11,7 @@ pub enum Error {
     Configuration(Key),
     Extraction(ExtractionFailure, String),
     Io(io::Error),
-    Network(reqwest::Error),
+    Network(Box<ureq::Error>),
     Unsupported(UnsupportedError, String),
     Url(url::ParseError),
 
@@ -72,9 +72,9 @@ impl error::Error for Error {
     }
 }
 
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
-        Error::Network(e)
+impl From<ureq::Error> for Error {
+    fn from(e: ureq::Error) -> Self {
+        Error::Network(Box::new(e))
     }
 }
 

@@ -58,6 +58,14 @@ impl<'a> NameContext<'a> {
         NameContext { url, name }
     }
 
+    pub fn from_response(response: &'a ureq::Response) -> Self {
+        static CONTENT_DISPOSITION: &str = "Content-Disposition";
+
+        let name = response.header(CONTENT_DISPOSITION).and_then(read_filename);
+
+        NameContext::new(response.get_url(), name.map(Cow::from))
+    }
+
     /// Gets the best name from the gallery.
     ///
     /// This name may be the final segment of the URL, or it may be a more descriptive name
@@ -103,6 +111,13 @@ fn name_from_url(s: &str) -> Option<&str> {
         ".php" | ".html" => None,
         _ => Some(s),
     }
+}
+
+fn read_filename(disposition: &str) -> Option<String> {
+    // "content-disposition": "attachment; filename=114_Turtlechan_312677_FISHOOKERS_PAGE_3.png"
+    disposition
+        .rfind("filename=")
+        .map(|idx| disposition[(idx + 9)..].to_owned())
 }
 
 #[cfg(test)]
