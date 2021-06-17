@@ -50,6 +50,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         // "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
         "imgur.com" => download(opt, imgur::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
+        "www.beautymuscle.net" => download(opt, beautymuscle::extract),
         "www.f-list.net" => download(opt, flist::extract),
         "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
 

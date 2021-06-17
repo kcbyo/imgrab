@@ -12,8 +12,9 @@ use std::{
 // pub mod nsfwalbum;
 // pub mod rule34;
 // pub mod sankakubeta;
-pub mod girlswithmuscle;
+pub mod beautymuscle;
 pub mod flist;
+pub mod girlswithmuscle;
 pub mod imgur;
 pub mod thefitgirlz;
 
@@ -93,7 +94,8 @@ pub trait Downloadable {
 pub trait Pager {
     type Context;
     type Item: Downloadable<Context = Self::Context>;
-    fn next_page(&mut self, context: &Self::Context) -> Option<crate::Result<VecDeque<Self::Item>>>;
+    fn next_page(&mut self, context: &Self::Context)
+        -> Option<crate::Result<VecDeque<Self::Item>>>;
 }
 
 pub struct UnpagedGallery<T: Downloadable> {

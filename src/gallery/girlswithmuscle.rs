@@ -16,7 +16,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
             name: read_name(url)?.into(),
             page: 1,
             previous_items: VecDeque::new(),
-        }
+        },
     })
 }
 
@@ -57,7 +57,10 @@ impl Pager for GwmPager {
 
     type Item = Id;
 
-    fn next_page(&mut self, context: &Self::Context) -> Option<crate::Result<VecDeque<Self::Item>>> {
+    fn next_page(
+        &mut self,
+        context: &Self::Context,
+    ) -> Option<crate::Result<VecDeque<Self::Item>>> {
         let url = format!(
             "https://www.girlswithmuscle.com/images/{}/?name={}",
             self.page, self.name,
