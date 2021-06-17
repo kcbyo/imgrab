@@ -7,12 +7,12 @@ use std::{
 // pub mod ehentai;
 // pub mod fitnakedgirls;
 // pub mod gelbooru;
-// pub mod girlswithmuscle;
 // pub mod hentai_foundry;
 // pub mod nhentai;
 // pub mod nsfwalbum;
 // pub mod rule34;
 // pub mod sankakubeta;
+pub mod girlswithmuscle;
 pub mod flist;
 pub mod imgur;
 pub mod thefitgirlz;
@@ -87,13 +87,13 @@ pub trait Downloadable {
     type Output: GalleryItem;
 
     /// Materialize a downloadable item as a gallery item.
-    fn download(self, agent: &Self::Context) -> crate::Result<Self::Output>;
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output>;
 }
 
 pub trait Pager {
     type Context;
     type Item: Downloadable<Context = Self::Context>;
-    fn next_page(&mut self, agent: &Self::Context) -> Option<crate::Result<VecDeque<Self::Item>>>;
+    fn next_page(&mut self, context: &Self::Context) -> Option<crate::Result<VecDeque<Self::Item>>>;
 }
 
 pub struct UnpagedGallery<T: Downloadable> {
@@ -181,6 +181,8 @@ mod prelude {
     };
     pub use std::collections::VecDeque;
     pub use ureq::{Agent, AgentBuilder};
+
+    pub type UreqResponse = Result<ureq::Response, ureq::Error>;
 
     pub static USER_AGENT: &str =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";

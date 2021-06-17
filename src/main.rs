@@ -47,11 +47,11 @@ fn run(opt: &Opt) -> crate::Result<()> {
         // "nhentai.net" => download(opt, nhentai::extract),
         // "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         // "rule34.xxx" => download(opt, rule34::extract),
-        // "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
         // "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
         "imgur.com" => download(opt, imgur::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
         "www.f-list.net" => download(opt, flist::extract),
+        "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
 
         other => Err(Error::Unsupported(UnsupportedError::Domain, other.into())),
     }

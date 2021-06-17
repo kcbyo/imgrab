@@ -1,43 +1,75 @@
+use regex::Regex;
+
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<GwmGallery> {
-    let name = read_name(url)?.into();
-    Ok(GwmGallery {
-        client: build_client()?,
-        name,
-        page: 1,
+pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
+    let context = Context {
+        agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
         image_id_pattern: Regex::new(r#"imgid(\d+)"#).unwrap(),
         data_url_pattern: Regex::new(r#"images/full/\d+\.[^"]+"#).unwrap(),
-        queue: VecDeque::new(),
-        last_queue: VecDeque::new(),
-        is_complete: false,
-        skip: 0,
+    };
+
+    Ok(PagedGallery {
+        context,
+        current_page: VecDeque::new(),
+        pager: GwmPager {
+            name: read_name(url)?.into(),
+            page: 1,
+            previous_items: VecDeque::new(),
+        }
     })
 }
 
-pub struct GwmGallery {
-    client: Client,
-    name: String,
+pub struct Context {
+    agent: Agent,
     image_id_pattern: Regex,
     data_url_pattern: Regex,
-    page: usize,
-    queue: VecDeque<String>,
-    last_queue: VecDeque<String>,
-    is_complete: bool,
-    skip: usize,
 }
 
-impl GwmGallery {
-    fn retrieve_batch(&mut self) -> crate::Result<usize> {
+impl Context {
+    fn get(&self, url: &str) -> UreqResponse {
+        self.agent.get(url).set("Accept", "text/html").call()
+    }
+
+    fn get_page_content(&self, url: &str) -> crate::Result<String> {
+        Ok(self.get(&url)?.into_string()?)
+    }
+
+    fn get_full_image_link(&self, id: &str) -> crate::Result<String> {
+        let url = format!("https://www.girlswithmuscle.com/{}/", id);
+        let content = self.get(&url)?.into_string()?;
+        let data_url = self
+            .data_url_pattern
+            .captures(&content)
+            .ok_or_else(|| Error::Extraction(ExtractionFailure::ImageUrl, url.clone()))?;
+        Ok(String::from("https://www.girlswithmuscle.com/") + data_url.get(0).unwrap().as_str())
+    }
+}
+
+pub struct GwmPager {
+    name: String,
+    page: usize,
+    previous_items: VecDeque<Id>,
+}
+
+impl Pager for GwmPager {
+    type Context = Context;
+
+    type Item = Id;
+
+    fn next_page(&mut self, context: &Self::Context) -> Option<crate::Result<VecDeque<Self::Item>>> {
         let url = format!(
             "https://www.girlswithmuscle.com/images/{}/?name={}",
             self.page, self.name,
         );
-        let response = self.client.get(&url).send()?.text()?;
-        let next_queue = self
+        let text = match context.get_page_content(&url) {
+            Ok(text) => text,
+            Err(e) => return Some(Err(e)),
+        };
+        let items: VecDeque<_> = context
             .image_id_pattern
-            .captures_iter(&response)
-            .map(|capture| capture.get(1).unwrap().as_str().into())
+            .captures_iter(&text)
+            .map(|capture| Id(capture.get(1).unwrap().as_str().into()))
             .collect();
 
         // This Simple Simon-ass API continues returning the last page of results as many times
@@ -49,74 +81,26 @@ impl GwmGallery {
         //
         // No, it's not efficient. No, I don't care.
 
-        if self.last_queue == next_queue {
-            Ok(0)
+        self.page += 1;
+        if items == self.previous_items {
+            None
         } else {
-            self.queue = next_queue;
-            self.last_queue = self.queue.clone();
-            Ok(self.queue.len())
+            self.previous_items = items.clone();
+            Some(Ok(items))
         }
-    }
-
-    fn get_full_image_link(&self, id: &str) -> crate::Result<String> {
-        let url = format!("https://www.girlswithmuscle.com/{}/", id);
-        let content = self.client.get(&url).send()?.text()?;
-        let data_url = self
-            .data_url_pattern
-            .captures(&content)
-            .ok_or_else(|| Error::Extraction(ExtractionFailure::ImageUrl, url.clone()))?;
-        Ok(String::from("https://www.girlswithmuscle.com/") + data_url.get(0).unwrap().as_str())
     }
 }
 
-impl Gallery for GwmGallery {
-    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
-        self.skip = skip;
-        Ok(())
-    }
+#[derive(Clone, PartialEq, Eq)]
+pub struct Id(String);
 
-    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
-        if self.is_complete {
-            return None;
-        }
+impl Downloadable for Id {
+    type Context = Context;
+    type Output = UreqGalleryItem;
 
-        if self.skip > 0 {
-            if self.skip > self.queue.len() {
-                self.skip -= self.queue.len();
-                self.queue.clear();
-            } else {
-                self.skip = 0;
-                self.queue.drain(..self.skip);
-            }
-        }
-
-        if self.queue.is_empty() {
-            match self.retrieve_batch() {
-                Ok(0) => {
-                    self.is_complete = true;
-                    return None;
-                }
-
-                Err(e) => {
-                    self.is_complete = true;
-                    return Some(Err(e));
-                }
-
-                _ => self.page += 1,
-            }
-        }
-
-        let id = self.queue.pop_front()?;
-        match self.get_full_image_link(&id).and_then(|url| {
-            self.client
-                .get(&url)
-                .send()
-                .map_err(|e| e.into())
-                .map(|response| (url, response))
-        }) {
-            Ok((url, response)) => Some(Ok(GalleryItem::new(url, response))),
-            Err(e) => Some(Err(e)),
-        }
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        let url = context.get_full_image_link(&self.0)?;
+        Ok(context.get(&url).map(UreqGalleryItem::new)?)
     }
 }
 
@@ -128,22 +112,4 @@ fn read_name(url: &str) -> crate::Result<&str> {
         .get(1)
         .unwrap()
         .as_str())
-}
-
-fn build_client() -> crate::Result<Client> {
-    use reqwest::header;
-
-    let builder = Client::builder();
-    let mut headers = header::HeaderMap::new();
-
-    headers.insert(
-        header::ACCEPT,
-        header::HeaderValue::from_static("text/html"),
-    );
-    headers.insert(
-        header::USER_AGENT,
-        header::HeaderValue::from_static(super::USER_AGENT),
-    );
-
-    Ok(builder.default_headers(headers).build()?)
 }
