@@ -64,10 +64,10 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<ImageModel>> {
     let image = query_image(&context, url)?;
     let mut images = VecDeque::with_capacity(1);
     images.push_back(image);
-    return Ok(UnpagedGallery {
+    Ok(UnpagedGallery {
         context,
         items: images,
-    });
+    })
 }
 
 pub struct Context {

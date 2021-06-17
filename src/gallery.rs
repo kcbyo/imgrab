@@ -6,7 +6,6 @@ use std::{
 
 // pub mod ehentai;
 // pub mod fitnakedgirls;
-// pub mod flist;
 // pub mod gelbooru;
 // pub mod girlswithmuscle;
 // pub mod hentai_foundry;
@@ -14,6 +13,7 @@ use std::{
 // pub mod nsfwalbum;
 // pub mod rule34;
 // pub mod sankakubeta;
+pub mod flist;
 pub mod imgur;
 pub mod thefitgirlz;
 
@@ -175,7 +175,9 @@ where
 mod prelude {
     pub use crate::{
         error::{Error, ExtractionFailure, UnsupportedError},
-        gallery::{Downloadable, NamedGalleryItem, PagedGallery, Pager},
+        gallery::{
+            Downloadable, NamedGalleryItem, PagedGallery, Pager, UnpagedGallery, UreqGalleryItem,
+        },
     };
     pub use std::collections::VecDeque;
     pub use ureq::{Agent, AgentBuilder};
