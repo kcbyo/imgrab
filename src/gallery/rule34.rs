@@ -35,7 +35,11 @@ impl Rule34Gallery {
             Regex::new(r#"<meta property="og:image" itemprop="image" content="([^"]+)""#).unwrap();
 
         Rule34Gallery {
-            client: Client::builder().build().unwrap(),
+            client: Client::builder()
+                .user_agent(super::USER_AGENT)
+                .cookie_store(true)
+                .build()
+                .unwrap(),
             tags,
             count: 0,
             queue: VecDeque::new(),
@@ -67,6 +71,9 @@ impl Rule34Gallery {
 
     fn retrieve_image_url(&self, url: &str) -> crate::Result<String> {
         let page_content = self.client.get(url).send()?.text()?;
+
+        std::fs::write("foo.html", &page_content).unwrap();
+
         let captures = self
             .image_url_pattern
             .captures(&page_content)

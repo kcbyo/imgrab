@@ -15,7 +15,7 @@ pub mod sankakubeta;
 use crate::storage::NameContext;
 
 pub static USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0";
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
 
 pub trait Gallery {
     fn next(&mut self) -> Option<crate::Result<GalleryItem>>;
