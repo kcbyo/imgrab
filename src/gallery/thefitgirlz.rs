@@ -1,15 +1,9 @@
-use std::{collections::VecDeque, io};
+use std::collections::VecDeque;
 
-use nipper::Document;
+use nipper::{Document, Matcher};
 use regex::Regex;
-use ureq::{Agent, AgentBuilder, Response};
 
-use crate::{
-    error::{Error, UnsupportedError},
-    storage::NameContext,
-};
-
-use super::{Downloadable, GalleryItem, PagedGallery, Pager};
+use super::prelude::*;
 
 pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
     let pattern = Regex::new("thefitgirlz.com/gallery/([^/]+)/").unwrap();
@@ -27,7 +21,11 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
         .to_owned();
 
     Ok(PagedGallery {
-        agent: AgentBuilder::new().user_agent(super::USER_AGENT).build(),
+        context: Context {
+            agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
+            image_meta_selector: Matcher::new("meta").unwrap(),
+            image_name_pattern: Regex::new(r"wp-content/uploads/(\d+)/(\d+)/(.+)").unwrap(),
+        },
         pager: FgPager {
             is_complete: false,
             offset: 0,
@@ -37,18 +35,10 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
     })
 }
 
-pub struct Item {
-    response: Response,
-}
-
-impl GalleryItem for Item {
-    fn context(&self) -> crate::storage::NameContext {
-        NameContext::from_response(&self.response)
-    }
-
-    fn write<W: std::io::Write + ?Sized>(self, writer: &mut W) -> std::io::Result<u64> {
-        io::copy(&mut self.response.into_reader(), writer)
-    }
+pub struct Context {
+    agent: Agent,
+    image_meta_selector: Matcher,
+    image_name_pattern: Regex,
 }
 
 pub struct FgPager {
@@ -58,11 +48,12 @@ pub struct FgPager {
 }
 
 impl Pager for FgPager {
+    type Context = Context;
     type Item = Url;
 
     fn next_page(
         &mut self,
-        agent: &ureq::Agent,
+        context: &Self::Context,
     ) -> Option<crate::Result<std::collections::VecDeque<Self::Item>>> {
         if self.is_complete {
             return None;
@@ -80,7 +71,7 @@ impl Pager for FgPager {
         };
         self.offset += 1;
 
-        let content = match download_page(&url, agent) {
+        let content = match download_page(&url, &context.agent) {
             Ok(content) => content,
             Err(e) => return Some(Err(e)),
         };
@@ -105,26 +96,54 @@ fn download_page(url: &str, agent: &Agent) -> crate::Result<String> {
 
 pub struct Url(String);
 
-impl AsRef<str> for Url {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
 impl Downloadable for Url {
-    type Output = Item;
+    type Context = Context;
+    type Output = NamedGalleryItem;
 
-    fn download(self, agent: &ureq::Agent) -> Result<Self::Output, ureq::Error> {
-        // Two-step download process:
-        // 1. Gallery page
-        // 2. Image
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        // Step one: get the image url from the gallery page
+        let content = context.agent.get(&self.0).call()?.into_string()?;
+        let document = Document::from(&content);
+        let url = document
+            .select_matcher(&context.image_meta_selector)
+            .iter()
+            .filter_map(|element| {
+                element
+                    .attr("property")
+                    .map(|attr| "og:image" == &*attr)
+                    .unwrap_or_default()
+                    .then(|| element.attr("content"))
+                    .flatten()
+            })
+            .next()
+            .ok_or_else(|| {
+                Error::Extraction(
+                    ExtractionFailure::ImageUrl,
+                    String::from("image url not found in metadata"),
+                )
+            })?;
 
-        // FIXME: let's sleep on this and think of a way to provide a shared
-        // extractor here, like a regex or whatever. That could be a download
-        // context (instead of just a bare agent) or... whatever.
+        // Step two: create a new image name based on the image url, because
+        // there's way too much repetition in the standard names for these.
+        let captures = context.image_name_pattern.captures(&*url).ok_or_else(|| {
+            Error::Extraction(
+                ExtractionFailure::Metadata,
+                format!(
+                    "unable to get wp-content upload year/month from text: {}",
+                    url
+                ),
+            )
+        })?;
 
-        let content = agent.get(&self.0).call()?.into_string()?;
+        // Should be impossible to match this pattern without all three groups, so....
+        let year = captures.get(1).unwrap().as_str();
+        let month = captures.get(2).unwrap().as_str();
+        let file = captures.get(3).unwrap().as_str();
 
-        agent.get(&self.0).call().map(|response| Item { response })
+        let response = context.agent.get(&*url).call()?;
+        Ok(NamedGalleryItem::new(
+            response,
+            format!("{}-{}-{}", year, month, file),
+        ))
     }
 }

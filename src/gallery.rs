@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::VecDeque,
     io::{self, Write},
 };
@@ -9,19 +10,14 @@ use std::{
 // pub mod gelbooru;
 // pub mod girlswithmuscle;
 // pub mod hentai_foundry;
-// pub mod imgur;
 // pub mod nhentai;
 // pub mod nsfwalbum;
 // pub mod rule34;
 // pub mod sankakubeta;
+pub mod imgur;
 pub mod thefitgirlz;
 
-use ureq::Agent;
-
 use crate::storage::NameContext;
-
-pub static USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
 
 pub trait Gallery {
     type Item: GalleryItem;
@@ -40,20 +36,93 @@ pub trait GalleryItem {
     fn write<W: Write + ?Sized>(self, writer: &mut W) -> io::Result<u64>;
 }
 
+/// A basic gallery item implemented on only a bare [`ureq::Response`]
+pub struct UreqGalleryItem {
+    response: ureq::Response,
+}
+
+impl UreqGalleryItem {
+    pub fn new(response: ureq::Response) -> Self {
+        Self { response }
+    }
+}
+
+impl GalleryItem for UreqGalleryItem {
+    fn context(&self) -> NameContext {
+        NameContext::from_response(&self.response)
+    }
+
+    fn write<W: io::Write + ?Sized>(self, writer: &mut W) -> io::Result<u64> {
+        io::copy(&mut self.response.into_reader(), writer)
+    }
+}
+
+/// A gallery item with an explicitly-overridden name
+pub struct NamedGalleryItem {
+    name: String,
+    response: ureq::Response,
+}
+
+impl NamedGalleryItem {
+    pub fn new(response: ureq::Response, name: impl Into<String>) -> Self {
+        Self {
+            response,
+            name: name.into(),
+        }
+    }
+}
+
+impl GalleryItem for NamedGalleryItem {
+    fn context(&self) -> NameContext {
+        NameContext::new(self.response.get_url(), Some(Cow::from(&self.name)))
+    }
+
+    fn write<W: io::Write + ?Sized>(self, writer: &mut W) -> io::Result<u64> {
+        io::copy(&mut self.response.into_reader(), writer)
+    }
+}
+
 pub trait Downloadable {
+    type Context;
     type Output: GalleryItem;
 
     /// Materialize a downloadable item as a gallery item.
-    fn download(self, agent: &Agent) -> Result<Self::Output, ureq::Error>;
+    fn download(self, agent: &Self::Context) -> crate::Result<Self::Output>;
 }
 
 pub trait Pager {
-    type Item: Downloadable;
-    fn next_page(&mut self, agent: &Agent) -> Option<crate::Result<VecDeque<Self::Item>>>;
+    type Context;
+    type Item: Downloadable<Context = Self::Context>;
+    fn next_page(&mut self, agent: &Self::Context) -> Option<crate::Result<VecDeque<Self::Item>>>;
+}
+
+pub struct UnpagedGallery<T: Downloadable> {
+    context: T::Context,
+    items: VecDeque<T>,
+}
+
+impl<T: Downloadable> Gallery for UnpagedGallery<T> {
+    type Item = T::Output;
+
+    fn next(&mut self) -> Option<crate::Result<Self::Item>> {
+        let item = self.items.pop_front()?;
+        Some(item.download(&self.context))
+    }
+
+    fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
+        if n < self.items.len() {
+            let _ = self.items.drain(..n);
+            Ok(n)
+        } else {
+            let len = self.items.len();
+            self.items.clear();
+            Ok(len)
+        }
+    }
 }
 
 pub struct PagedGallery<T: Pager> {
-    agent: Agent,
+    context: T::Context,
     pager: T,
     current_page: VecDeque<T::Item>,
 }
@@ -66,7 +135,7 @@ where
 
     fn next(&mut self) -> Option<crate::Result<Self::Item>> {
         if self.current_page.is_empty() {
-            match self.pager.next_page(&self.agent)? {
+            match self.pager.next_page(&self.context)? {
                 Ok(next_page) => self.current_page = next_page,
                 Err(e) => return Some(Err(e)),
             }
@@ -75,7 +144,7 @@ where
         }
 
         let item = self.current_page.pop_front()?;
-        Some(item.download(&self.agent).map_err(|e| e.into()))
+        Some(item.download(&self.context))
     }
 
     fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
@@ -84,7 +153,7 @@ where
 
         loop {
             if self.current_page.is_empty() {
-                self.current_page = match self.pager.next_page(&self.agent) {
+                self.current_page = match self.pager.next_page(&self.context) {
                     Some(Ok(next_page)) => next_page,
                     Some(Err(e)) => return Err(e),
                     None => return Ok(0),
@@ -103,76 +172,14 @@ where
     }
 }
 
-/// An item parsed from a gallery
-///
-/// A gallery item may have a name distinct from its url. An example might
-/// be a gallery wherein items are numbered 001 through 089 but with useless
-/// urls, e.g. /picture/3545ugF8sCX33985. In that case, an implementation
-/// may choose to pass on the more useful name along with the url.
-// pub struct GalleryItem {
-//     url: String,
-//     response: reqwest::blocking::Response,
-//     name: Option<String>,
-// }
-
-// impl GalleryItem {
-//     pub fn new(url: impl Into<String>, response: reqwest::blocking::Response) -> Self {
-//         GalleryItem {
-//             url: url.into(),
-//             response,
-//             name: None,
-//         }
-//     }
-
-//     pub fn with_name<T, U>(url: T, name: U, response: reqwest::blocking::Response) -> Self
-//     where
-//         T: Into<String>,
-//         U: Into<String>,
-//     {
-//         GalleryItem {
-//             url: url.into(),
-//             response,
-//             name: Some(name.into()),
-//         }
-//     }
-
-//     pub fn context(&self) -> NameContext {
-//         use std::borrow::Cow;
-
-//         let content_disposition = self
-//             .response
-//             .headers()
-//             .get(reqwest::header::CONTENT_DISPOSITION);
-
-//         let name = self
-//             .name
-//             .as_ref()
-//             .map(Cow::from)
-//             .or_else(|| content_disposition.and_then(read_filename).map(Cow::from));
-
-//         NameContext::new(&self.url, name)
-//     }
-
-//     pub fn write(&mut self, mut target: impl Write) -> crate::Result<u64> {
-//         Ok(self.response.copy_to(&mut target)?)
-//     }
-// }
-
-// fn read_filename(disposition: &reqwest::header::HeaderValue) -> Option<String> {
-//     // "content-disposition": "attachment; filename=114_Turtlechan_312677_FISHOOKERS_PAGE_3.png"
-//     let disposition = disposition.to_str().ok()?;
-//     disposition
-//         .rfind("filename=")
-//         .map(|idx| disposition[(idx + 9)..].to_owned())
-// }
-
 mod prelude {
     pub use crate::{
         error::{Error, ExtractionFailure, UnsupportedError},
-        gallery::{Gallery, GalleryItem},
+        gallery::{Downloadable, NamedGalleryItem, PagedGallery, Pager},
     };
-    pub use regex::Regex;
-    pub use reqwest::blocking::{Client, Request, Response};
     pub use std::collections::VecDeque;
-    pub use std::iter::Skip;
+    pub use ureq::{Agent, AgentBuilder};
+
+    pub static USER_AGENT: &str =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
 }

@@ -44,13 +44,13 @@ fn run(opt: &Opt) -> crate::Result<()> {
         // "e-hentai.org" => download(opt, ehentai::extract),
         // "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
         // "gelbooru.com" => download(opt, gelbooru::extract),
-        // "imgur.com" => download(opt, imgur::extract),
         // "nhentai.net" => download(opt, nhentai::extract),
         // "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         // "rule34.xxx" => download(opt, rule34::extract),
         // "www.f-list.net" => download(opt, flist::extract),
         // "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
         // "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
+        "imgur.com" => download(opt, imgur::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
 
         other => Err(Error::Unsupported(UnsupportedError::Domain, other.into())),
@@ -87,7 +87,7 @@ fn download<T: Gallery>(
         waiter.wait();
 
         match item {
-            Ok(mut item) => {
+            Ok(item) => {
                 let path = storage.create_path(item.context());
                 if !overwrite && existing_files.contains(&path) {
                     if let Some(file_path) = pathdiff::diff_paths(&path, &current_dir) {

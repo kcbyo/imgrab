@@ -1,8 +1,11 @@
-use std::vec;
-
 use serde::Deserialize;
 
-use crate::gallery::prelude::*;
+use crate::{
+    config::{Configuration, Key},
+    gallery::prelude::*,
+};
+
+use super::{UnpagedGallery, UreqGalleryItem};
 
 #[derive(Clone, Debug, Deserialize)]
 struct ResponseModel<T> {
@@ -16,105 +19,109 @@ struct GalleryModel {
     id: String,
     title: String,
     link: String,
-    images: Vec<ImageModel>,
+    images: VecDeque<ImageModel>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-struct ImageModel {
+pub struct ImageModel {
     id: String,
     width: u32,
     height: u32,
     size: u64,
     link: String,
+    mp4: Option<String>,
 }
 
-pub fn extract(url: &str) -> crate::Result<ImgurGallery> {
-    let client = build_client()?;
+impl Downloadable for ImageModel {
+    type Context = Context;
+    type Output = UreqGalleryItem;
+
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        let link = self.mp4.unwrap_or(self.link);
+        Ok(context.get(&link).map(UreqGalleryItem::new)?)
+    }
+}
+
+pub fn extract(url: &str) -> crate::Result<UnpagedGallery<ImageModel>> {
+    let context = Context::try_with_config()?;
 
     if url.contains("imgur.com/a/") {
-        let images = query_album(&client, url)?;
-        return Ok(ImgurGallery {
-            client,
-            idx: 0,
-            images,
+        let images = query_album(&context, url)?;
+        return Ok(UnpagedGallery {
+            context,
+            items: images,
         });
     }
 
     if url.contains("imgur.com/gallery/") {
-        let images = query_gallery(&client, url)?;
-        return Ok(ImgurGallery {
-            client,
-            idx: 0,
-            images,
+        let images = query_gallery(&context, url)?;
+        return Ok(UnpagedGallery {
+            context,
+            items: images,
         });
     }
 
-    let image = query_image(&client, url)?;
-    Ok(ImgurGallery {
-        client,
-        idx: 0,
-        images: vec![image],
-    })
+    let image = query_image(&context, url)?;
+    let mut images = VecDeque::with_capacity(1);
+    images.push_back(image);
+    return Ok(UnpagedGallery {
+        context,
+        items: images,
+    });
 }
 
-pub struct ImgurGallery {
-    client: Client,
-    idx: usize,
-    images: Vec<ImageModel>,
+pub struct Context {
+    agent: Agent,
+    auth_header_content: String,
 }
 
-impl Gallery for ImgurGallery {
-    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
-        match self.idx {
-            idx if idx < self.images.len() => {
-                self.idx += 1;
-                let link = self.images[idx].link.clone();
-                match self.client.get(&link).send() {
-                    Ok(response) => Some(Ok(GalleryItem::new(link, response))),
-                    Err(e) => Some(Err(e.into())),
-                }
-            }
+impl Context {
+    fn try_with_config() -> crate::Result<Self> {
+        let config = Configuration::init();
+        let imgur_client_id = config.get_config(Key::ImgurClientId)?;
 
-            _ => None,
-        }
+        Ok(Self {
+            agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
+            auth_header_content: format!("Client-ID {}", imgur_client_id),
+        })
     }
 
-    fn advance_by(&mut self, n: usize) -> crate::Result<()> {
-        self.idx += n;
-        Ok(())
+    fn get(&self, url: &str) -> Result<ureq::Response, ureq::Error> {
+        self.agent
+            .get(url)
+            .set("Accept", "text/json")
+            .set("Authorization", &self.auth_header_content)
+            .call()
     }
 }
 
-fn query_album(client: &Client, url: &str) -> crate::Result<Vec<ImageModel>> {
-    let response: ResponseModel<Vec<ImageModel>> = client
+fn query_album(context: &Context, url: &str) -> crate::Result<VecDeque<ImageModel>> {
+    let response: ResponseModel<VecDeque<ImageModel>> = context
         .get(&format!(
             "https://api.imgur.com/3/album/{}/images",
             last_segment(url)?
-        ))
-        .send()?
-        .json()?;
+        ))?
+        .into_json()?;
     Ok(response.data)
 }
 
-fn query_gallery(client: &Client, url: &str) -> crate::Result<Vec<ImageModel>> {
-    let response: ResponseModel<GalleryModel> = client
+fn query_gallery(context: &Context, url: &str) -> crate::Result<VecDeque<ImageModel>> {
+    let response: ResponseModel<GalleryModel> = context
         .get(&format!(
             "https://api.imgur.com/3/gallery/album/{}",
             last_segment(url)?
-        ))
-        .send()?
-        .json()?;
+        ))?
+        .into_json()?;
     Ok(response.data.images)
 }
 
-fn query_image(client: &Client, url: &str) -> crate::Result<ImageModel> {
-    let response: ResponseModel<ImageModel> = client
+fn query_image(context: &Context, url: &str) -> crate::Result<ImageModel> {
+    let response: ResponseModel<ImageModel> = context
         .get(&format!(
             "https://api.imgur.com/3/image/{}",
             last_segment(url)?
-        ))
-        .send()?
-        .json()?;
+        ))?
+        .into_json()?;
     Ok(response.data)
 }
 
@@ -132,29 +139,6 @@ fn last_segment(address: &str) -> crate::Result<String> {
                 String::from("Failed to extract imgur image hash"),
             )
         })
-}
-
-fn build_client() -> crate::Result<Client> {
-    use crate::config::{Configuration, Key};
-    use reqwest::header::{self, HeaderValue};
-
-    let config = Configuration::init();
-    let imgur_client_id = config.get_config(Key::ImgurClientId)?;
-    let builder = Client::builder();
-
-    let mut headers = header::HeaderMap::new();
-
-    headers.insert(header::ACCEPT, HeaderValue::from_static("text/json"));
-    headers.insert(
-        header::USER_AGENT,
-        HeaderValue::from_static("imgrab 0.1.4+"),
-    );
-    headers.insert(
-        "Authorization",
-        HeaderValue::from_str(&format!("Client-ID {}", imgur_client_id)).unwrap(),
-    );
-
-    Ok(builder.default_headers(headers).build()?)
 }
 
 #[cfg(test)]
