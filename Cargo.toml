@@ -1,6 +1,6 @@
 [package]
 name = "imgrab"
-version = "0.4.4"
+version = "0.5.0"
 authors = ["Keep Calm <keepcalmandbyo@gmail.com>"]
 edition = "2018"
 include = ["src/**/*", "README.md"]

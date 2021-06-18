@@ -1,46 +1,43 @@
-use super::prelude::*;
-
-use std::vec;
-
 use regex::Regex;
+
+use super::prelude::*;
 
 // FIXME: This almost works, but it's actually downloading thumbnails instead of full-size images.
 
-pub fn extract(url: &str) -> crate::Result<NsfwAlbumGallery> {
-    let client = build_client()?;
+pub fn extract(url: &str) -> crate::Result<UnpagedGallery<NsfwImageId>> {
+    let client = Client::builder().user_agent(USER_AGENT).build().unwrap();
     let pattern = Regex::new(r#"data-img-id="(\d+)""#).unwrap();
     let content = client.get(url).send()?.text()?;
-
-    let images: Vec<_> = pattern
+    let images = pattern
         .captures_iter(&content)
         .filter_map(|x| x.get(1).map(|x| x.as_str().to_owned()))
-        .collect();
+        .map(NsfwImageId);
 
-    Ok(NsfwAlbumGallery::new(client, images))
+    Ok(UnpagedGallery {
+        context: Context::with_client(client),
+        items: images.collect(),
+    })
 }
 
-pub struct NsfwAlbumGallery {
+pub struct Context {
     client: Client,
-    images: vec::IntoIter<String>,
     pattern: Regex,
 }
 
-impl NsfwAlbumGallery {
-    fn new(client: Client, images: Vec<String>) -> Self {
+impl Context {
+    fn with_client(client: Client) -> Self {
         Self {
             client,
-            images: images.into_iter(),
             pattern: Regex::new(r#"giraffe\.annihilate\("([^"]+)", (\d+)\)"#).unwrap(),
         }
     }
 
-    fn request_image(&self, id: &str) -> crate::Result<(String, Response)> {
+    fn request_image(&self, id: &str) -> crate::Result<Response> {
         let url = format_stage_one_url(id);
         let image_content = self.client.get(&url).send()?.text()?;
         let (giraffe, salt) = self.extract_params(&image_content)?;
         let url = format_stage_two_url(id, giraffe, salt);
-        let result = self.client.get(&url).send()?;
-        Ok((url, result))
+        Ok(self.client.get(&url).send()?)
     }
 
     fn extract_params<'a>(&self, image_content: &'a str) -> crate::Result<(&'a str, i32)> {
@@ -65,19 +62,18 @@ impl NsfwAlbumGallery {
     }
 }
 
-impl Gallery for NsfwAlbumGallery {
-    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
-        let images: Vec<_> = self.images.by_ref().skip(skip).collect();
-        self.images = images.into_iter();
-        Ok(())
-    }
+pub struct NsfwImageId(String);
 
-    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
-        let id = self.images.next()?;
-        let response = self
+impl Downloadable for NsfwImageId {
+    type Context = Context;
+
+    type Output = NamedGalleryItem;
+
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        let id = self.0;
+        context
             .request_image(&id)
-            .map(|(url, response)| GalleryItem::with_name(url, id.to_owned() + ".jpg", response));
-        Some(response)
+            .map(|response| NamedGalleryItem::new(response, id + ".jpg"))
     }
 }
 
@@ -109,10 +105,6 @@ fn annihilate(giraffe: &str, salt: i32) -> String {
             }
         })
         .collect()
-}
-
-fn build_client() -> crate::Result<Client> {
-    Ok(Client::builder().user_agent(super::USER_AGENT).build()?)
 }
 
 #[cfg(test)]

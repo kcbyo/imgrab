@@ -1,76 +1,38 @@
 use super::prelude::*;
 
-use std::vec;
+pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FngUrl>> {
+    use scraper::{Html, Selector};
 
-pub fn extract(url: &str) -> crate::Result<FngGallery> {
-    let client = build_client()?;
+    let client = Client::builder().user_agent(USER_AGENT).build().unwrap();
     let content = client.get(url).send()?.text()?;
-    Ok(FngGallery {
-        client,
-        images: extract_images(&content).into_iter(),
+
+    let item_selector = Selector::parse("div.album img,div.album source").unwrap();
+    let document = Html::parse_document(&content);
+
+    Ok(UnpagedGallery {
+        context: client,
+        items: document
+            .select(&item_selector)
+            .filter_map(|noderef| {
+                let src = noderef.value().attr("src")?;
+                match src.rfind('?') {
+                    Some(idx) => Some(src[..idx].into()),
+                    None => Some(src.into()),
+                }
+            })
+            .map(FngUrl)
+            .collect(),
     })
 }
 
-fn extract_images(content: &str) -> Vec<String> {
-    use scraper::{Html, Selector};
+pub struct FngUrl(String);
 
-    let item_selector = Selector::parse("div.album img,div.album source").unwrap();
-    let document = Html::parse_document(content);
-    document
-        .select(&item_selector)
-        .filter_map(|noderef| {
-            let src = noderef.value().attr("src")?;
-            match src.rfind('?') {
-                Some(idx) => Some(src[..idx].into()),
-                None => Some(src.into()),
-            }
-        })
-        .collect()
-}
+impl Downloadable for FngUrl {
+    type Context = Client;
 
-pub struct FngGallery {
-    client: Client,
-    images: vec::IntoIter<String>,
-}
+    type Output = ResponseGalleryItem;
 
-impl Gallery for FngGallery {
-    fn advance_by(&mut self, skip: usize) -> crate::Result<()> {
-        let buf: Vec<_> = self.images.by_ref().skip(skip).collect();
-        self.images = buf.into_iter();
-        Ok(())
-    }
-
-    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
-        self.images.next().map(|url| {
-            self.client
-                .get(&url)
-                .send()
-                .map(|x| GalleryItem::new(url, x))
-                .map_err(|e| e.into())
-        })
-    }
-}
-
-fn build_client() -> crate::Result<Client> {
-    use reqwest::header::{self, HeaderValue};
-
-    let builder = Client::builder();
-    let mut headers = header::HeaderMap::new();
-
-    headers.insert(
-        header::USER_AGENT,
-        HeaderValue::from_static("imgrab 0.1.4+"),
-    );
-
-    Ok(builder.default_headers(headers).build()?)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn blearch() {
-        let content = include_str!("../../resource/fitnakedgirls/gallery.html");
-        let links = super::extract_images(content);
-        assert_eq!(129, links.len());
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        Ok(context.get(&self.0).send().map(ResponseGalleryItem::new)?)
     }
 }
