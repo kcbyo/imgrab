@@ -7,13 +7,13 @@ use std::{
 
 // pub mod ehentai;
 // pub mod gelbooru;
-// pub mod hentai_foundry;
 // pub mod nhentai;
 // pub mod rule34;
 pub mod beautymuscle;
 pub mod fitnakedgirls;
 pub mod flist;
 pub mod girlswithmuscle;
+pub mod hentai_foundry;
 pub mod imgur;
 pub mod nsfwalbum;
 pub mod sankakubeta;

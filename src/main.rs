@@ -47,7 +47,6 @@ fn run(opt: &Opt) -> crate::Result<()> {
         // "gelbooru.com" => download(opt, gelbooru::extract),
         // "nhentai.net" => download(opt, nhentai::extract),
         // "rule34.xxx" => download(opt, rule34::extract),
-        // "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
         "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
         "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
         "imgur.com" => download(opt, imgur::extract),
@@ -56,6 +55,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         "www.beautymuscle.net" => download(opt, beautymuscle::extract),
         "www.f-list.net" => download(opt, flist::extract),
         "www.girlswithmuscle.com" => download(opt, girlswithmuscle::extract),
+        "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
 
         other => Err(Error::Unsupported(UnsupportedError::Domain, other.into())),
     }
