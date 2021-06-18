@@ -45,11 +45,11 @@ fn run(opt: &Opt) -> crate::Result<()> {
     match domain {
         // "e-hentai.org" => download(opt, ehentai::extract),
         // "gelbooru.com" => download(opt, gelbooru::extract),
-        // "nhentai.net" => download(opt, nhentai::extract),
         // "rule34.xxx" => download(opt, rule34::extract),
         "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
         "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
         "imgur.com" => download(opt, imgur::extract),
+        "nhentai.net" => download(opt, nhentai::extract),
         "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
         "www.beautymuscle.net" => download(opt, beautymuscle::extract),
