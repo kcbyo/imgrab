@@ -1,14 +1,11 @@
-use std::collections::VecDeque;
-
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::{
-    config::{Configuration, Key},
-    gallery::prelude::*,
-};
+use crate::config::{Configuration, Key};
 
-pub fn extract(url: &str) -> crate::Result<GelbooruGallery> {
+use super::prelude::*;
+
+pub fn extract(url: &str) -> crate::Result<PagedGallery<GelbooruPager>> {
     let config = Configuration::init();
     let user_id = config.get_config(Key::GelbooruUser)?.into();
 
@@ -16,102 +13,60 @@ pub fn extract(url: &str) -> crate::Result<GelbooruGallery> {
     // really not interested in the url itself. We pretty much only want the search tags.
     let tags = read_tags(url)?.into();
 
-    // Once we have the search tags, we need... Fuck all. Let's go.
-    Ok(GelbooruGallery {
-        user_id,
-        client: build_client()?,
-        tags,
-        queue: VecDeque::new(),
-        page: 0,
-        is_complete: false,
+    Ok(PagedGallery {
+        context: build_client(),
+        pager: GelbooruPager {
+            user_id,
+            tags,
+            page: 0,
+            is_complete: false,
+        },
+        current: Page::Empty,
     })
 }
 
-pub struct GelbooruGallery {
+pub struct GelbooruPager {
     user_id: String,
-    client: Client,
     tags: String,
-    queue: VecDeque<Image>,
     page: usize,
     is_complete: bool,
 }
 
-impl GelbooruGallery {
-    fn retrieve_batch(&mut self) -> crate::Result<usize> {
+impl Pager for GelbooruPager {
+    type Context = Client;
+
+    type Item = Image;
+
+    fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
+        if self.is_complete {
+            return Ok(Page::Empty);
+        }
+
         let request = Request {
             user_id: &self.user_id,
             tags: &self.tags,
             pid: self.page,
         };
-
-        let queue: VecDeque<Image> = self.client.get(&request.format()).send()?.json()?;
-
-        self.queue = queue;
         self.page += 1;
 
-        Ok(self.queue.len())
-    }
-}
-
-impl Gallery for GelbooruGallery {
-    fn advance_by(&mut self, mut skip: usize) -> crate::Result<()> {
-        loop {
-            if skip == 0 {
-                return Ok(());
-            }
-
-            if skip < self.queue.len() {
-                self.queue.drain(..skip);
-                return Ok(());
-            }
-
-            skip = skip.saturating_sub(self.queue.len());
-            self.queue.clear();
-            if 0 == self.retrieve_batch()? {
-                self.is_complete = true;
-                return Ok(());
-            }
-        }
-    }
-
-    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
-        if self.is_complete {
-            return None;
-        }
-
-        if self.queue.is_empty() {
-            match self.retrieve_batch() {
-                // API returns empty array for nonexistent pages.
-                Ok(0) => {
-                    self.is_complete = true;
-                    return None;
-                }
-
-                Err(e) => {
-                    self.is_complete = true;
-                    return Some(Err(e));
-                }
-
-                _ => (),
-            }
-        }
-
-        let image = self.queue.pop_front()?;
-        match self.client.get(&image.file_url).send() {
-            Ok(response) => Some(Ok(GalleryItem::new(image.file_url, response))),
-            Err(e) => Some(Err(e.into())),
+        let page: VecDeque<Image> = context.get(&request.format()).send()?.json()?;
+        if page.is_empty() {
+            self.is_complete = true;
+            Ok(Page::Empty)
+        } else {
+            Ok(Page::Items(page))
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-struct Image {
-    // This ID serves no purpose that I'm aware of just yet, but... Meh. Whatever, ok?
+pub struct Image {
+    // This ID serves no purpose that I'm aware of just yet, but...
+    // Meh. Whatever, ok?
     id: u32,
     file_url: String,
 }
 
-// https://gelbooru.com/index.php?page=dapi&s=post&q=index&limit=10&tags=loli+slave+sweat+whip_marks&json=1&pid=1
 struct Request<'a> {
     user_id: &'a str,
     tags: &'a str,
@@ -132,6 +87,31 @@ impl Request<'_> {
     }
 }
 
+impl Downloadable for Image {
+    type Context = Client;
+
+    type Output = ResponseGalleryItem;
+
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        Ok(context
+            .get(&self.file_url)
+            .send()
+            .map(ResponseGalleryItem::new)?)
+    }
+}
+
+fn build_client() -> Client {
+    use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
+
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT, HeaderValue::from_static("text/html"));
+    Client::builder()
+        .user_agent(USER_AGENT)
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
+
 fn read_tags(url: &str) -> crate::Result<&str> {
     let pattern = Regex::new(r#"tags=([^&]+)"#).unwrap();
     Ok(pattern
@@ -142,38 +122,22 @@ fn read_tags(url: &str) -> crate::Result<&str> {
         .as_str())
 }
 
-fn build_client() -> crate::Result<Client> {
-    use reqwest::header;
-
-    let builder = Client::builder();
-    let mut headers = header::HeaderMap::new();
-
-    headers.insert(
-        header::ACCEPT,
-        header::HeaderValue::from_static("text/html"),
-    );
-    headers.insert(
-        header::USER_AGENT,
-        header::HeaderValue::from_static(super::USER_AGENT),
-    );
-
-    Ok(builder.default_headers(headers).build()?)
-}
-
 #[cfg(test)]
 mod tests {
+    use super::Image;
+
     #[test]
     fn can_deserialize() -> serde_json::Result<()> {
         let payload = include_str!("../../resource/gelbooru/search.json");
-        let result: Vec<super::Image> = serde_json::from_str(payload)?;
+        let result: Vec<Image> = serde_json::from_str(payload)?;
         assert_eq!(10, result.len());
         Ok(())
     }
 
     #[test]
     fn can_read_tags() -> crate::Result<()> {
-        let url = "https://gelbooru.com/index.php?page=post&s=list&tags=slave+loli";
-        assert_eq!("slave+loli", super::read_tags(url)?);
+        let url = "https://gelbooru.com/index.php?page=post&s=list&tags=text+tags";
+        assert_eq!("text+tags", super::read_tags(url)?);
         Ok(())
     }
 }

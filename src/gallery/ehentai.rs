@@ -1,15 +1,146 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use regex::Regex;
+use serde::Serialize;
 
-use crate::{
-    config::{Configuration, Key},
-    gallery::prelude::*,
-};
+use crate::config::{Configuration, Key};
+
+use super::prelude::*;
+
+pub fn extract(url: &str) -> crate::Result<PagedGallery<EhentaiPager>> {
+    // So, one ugly fact about the e-hentai implementation is that the only way to get
+    // full-sized images from e-hentai is by logging in. I've already figured out (read:
+    // implemented in another program) their authentication mechanism, so it's not that
+    // big a deal, but I *am* gonna split that out into a different function from the
+    // initializer for the gallery itself. The reader will do the login here, then pass
+    // the (logged-in) client to the gallery.
+
+    let config = Configuration::init();
+    let username = config.get_config(Key::EHentaiUser)?;
+    let password = config.get_config(Key::EHentaiPass)?;
+    let client = configure_client(username, password)?;
+
+    // Before we begin, we need to grab some gallery metadata: specifically, we need the
+    // page size and the total image count for the gallery. While we're at it, we may as
+    // well also grab the first batch of images, too.
+    let page_content = client.get(url).send()?.text()?;
+    let (_page_size, gallery_size) = read_meta(url, &page_content)?;
+    let image_page_pattern = Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap();
+    let queue: Page<_> = image_page_pattern
+        .captures_iter(&page_content)
+        .map(|s| EhentaiUrl(s.get(0).unwrap().as_str().into()))
+        .collect();
+
+    Ok(PagedGallery {
+        context: Context::with_client(client),
+        pager: EhentaiPager {
+            base_url: url.into(),
+            page: 1,
+            paged_count: queue.len(),
+            total_count: gallery_size,
+        },
+        current: queue,
+    })
+}
+
+pub struct EhentaiPager {
+    base_url: String,
+    page: usize,
+
+    // If paged count matches or exceeds total count, we are done.
+    paged_count: usize,
+    total_count: usize,
+}
+
+impl Pager for EhentaiPager {
+    type Context = Context;
+
+    type Item = EhentaiUrl;
+
+    fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
+        // E-hentai has some peculiarities re: its gallery design that make the way we do things
+        // here a little strange. For a start, you'll never be shown an empty gallery page. An
+        // attempt to increment your position past the final page of a gallery will result in
+        // the final page being displayed again. Because of this, we'll keep track not only of
+        // our current page but also of the number of images we've encountered so far.
+        //
+        // This number should be compared to the total number of images expected, which must also
+        // be extracted from the gallery pages themselves, in order to know when we should cease
+        // iteration.
+
+        if self.paged_count >= self.total_count {
+            return Ok(Page::Empty);
+        }
+
+        let url = format!("{}?p={}", self.base_url, self.page);
+        self.page += 1;
+        let text = context.client.get(&url).send()?.text()?;
+        let page: Page<_> = context
+            .page_url_pattern
+            .find_iter(&text)
+            .map(|x| EhentaiUrl(x.as_str().into()))
+            .collect();
+        self.paged_count += page.len();
+        Ok(page)
+    }
+}
+
+pub struct Context {
+    client: Client,
+    page_url_pattern: Regex,
+    full_size_pattern: Regex,
+    thumbnail_pattern: Regex,
+}
+
+impl Context {
+    fn with_client(client: Client) -> Self {
+        Self {
+            client,
+            page_url_pattern: Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap(),
+            thumbnail_pattern: Regex::new(r#"id="img" src="([^"]+)"#).unwrap(),
+            full_size_pattern: Regex::new(r#"<a href="([^"]+)">Download original"#).unwrap(),
+        }
+    }
+    fn retrieve_image_url(&self, url: &str) -> crate::Result<String> {
+        // There are two flavors of image: full size and standard. In the
+        // event there is no full-size image, fall back to standard.
+        let text = self.client.get(url).send()?.text()?;
+        self.extract_full_size(&text)
+            .or_else(|| self.extract_thumbnail(&text))
+            .ok_or_else(|| Error::Extraction(ExtractionFailure::ImageUrl, url.into()))
+    }
+
+    fn extract_full_size(&self, text: &str) -> Option<String> {
+        self.full_size_pattern
+            .captures(text)
+            .map(|captures| captures.get(1).unwrap().as_str().replace("&amp;", "&"))
+    }
+
+    fn extract_thumbnail(&self, text: &str) -> Option<String> {
+        self.thumbnail_pattern
+            .captures(text)
+            .map(|captures| captures.get(1).unwrap().as_str().into())
+    }
+}
+
+pub struct EhentaiUrl(String);
+
+impl Downloadable for EhentaiUrl {
+    type Context = Context;
+
+    type Output = ResponseGalleryItem;
+
+    fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+        let url = context.retrieve_image_url(&self.0)?;
+        Ok(context
+            .client
+            .get(&url)
+            .send()
+            .map(ResponseGalleryItem::new)?)
+    }
+}
 
 fn configure_client(username: &str, password: &str) -> crate::Result<Client> {
-    use serde::Serialize;
-
     // This struct looks ridiculous, but it represents the form post required to successfully
     // authenticate to e-hentai's back end. God knows what all this crap is for.
     #[derive(Serialize)]
@@ -44,192 +175,32 @@ fn configure_client(username: &str, password: &str) -> crate::Result<Client> {
         .form(&Form::new(username, password))
         .send()?;
 
-    let cookies = read_cookies(&response);
-    build_client(cookies)
+    Ok(build_client(read_cookies(&response)))
 }
 
-pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
-    // So, one ugly fact about the e-hentai implementation is that the only way to get
-    // full-sized images from e-hentai is by logging in. I've already figured out (read:
-    // implemented in another program) their authentication mechanism, so it's not that
-    // big a deal, but I *am* gonna split that out into a different function from the
-    // initializer for the gallery itself. The reader will do the login here, then pass
-    // the (logged-in) client to the gallery.
+fn build_client(cookies: HashMap<String, String>) -> Client {
+    use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, COOKIE, USER_AGENT};
+    use std::fmt::Write;
 
-    let config = Configuration::init();
-    let username = config.get_config(Key::EHentaiUser)?;
-    let password = config.get_config(Key::EHentaiPass)?;
-    let client = configure_client(username, password)?;
+    let builder = Client::builder();
+    let mut headers = HeaderMap::new();
+    let mut buffer = String::from("nw=1");
 
-    // Before we begin, we need to grab some gallery metadata: specifically, we need the
-    // page size and the total image count for the gallery. While we're at it, we may as
-    // well also grab the first batch of images, too.
-    let page_content = client.get(url).send()?.text()?;
-    let (_page_size, gallery_size) = read_meta(url, &page_content)?;
-    let image_page_pattern = Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap();
-    let queue: VecDeque<_> = image_page_pattern
-        .captures_iter(&page_content)
-        .map(|s| s.get(0).unwrap().as_str().into())
-        .collect();
-
-    Ok(EHentaiGallery {
-        client,
-        base_url: url.into(),
-        page: 1,
-        count: queue.len(),
-        queue,
-        // page_size,
-        gallery_size,
-        image_page_pattern,
-        image_url_pattern: Regex::new(r#"id="img" src="([^"]+)"#).unwrap(),
-        image_url_pattern_fullsize: Regex::new(r#"<a href="([^"]+)">Download original"#).unwrap(),
-    })
-}
-
-/// An image url in a given size.
-///
-/// This type is mostly useless, but is used to provide debugging information about the source
-/// of images.
-#[derive(Debug)]
-pub enum SizeOption {
-    Thumb(String),
-    Full(String),
-}
-
-impl SizeOption {
-    fn unwrap(self) -> String {
-        match self {
-            SizeOption::Thumb(s) | SizeOption::Full(s) => s,
-        }
-    }
-}
-
-impl AsRef<str> for SizeOption {
-    fn as_ref(&self) -> &str {
-        match self {
-            SizeOption::Thumb(s) | SizeOption::Full(s) => s.as_ref(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct EHentaiGallery {
-    client: Client,
-    base_url: String,
-    page: usize,
-    count: usize,
-    queue: VecDeque<String>,
-
-    // Page size could be used, hypothetically, to improve the efficiency of the iterator
-    // functions skip and take.
-    // page_size: usize,
-    gallery_size: usize,
-
-    // Patterns
-    image_page_pattern: Regex,
-    image_url_pattern: Regex,
-    image_url_pattern_fullsize: Regex,
-}
-
-impl EHentaiGallery {
-    fn retrieve_batch(&mut self) -> crate::Result<usize> {
-        let url = format!("{}?p={}", self.base_url, self.page);
-        let page_content = self.client.get(&url).send()?.text()?;
-        self.queue = self.read_batch(&page_content);
-        Ok(self.queue.len())
+    for (key, value) in cookies {
+        let _ = write!(buffer, "; {}={}", key, value);
     }
 
-    fn retrieve_image_url(&self, url: &str) -> crate::Result<SizeOption> {
-        let page_content = self.client.get(url).send()?.text()?;
+    headers.insert(ACCEPT, HeaderValue::from_static("text/html"));
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_static(super::prelude::USER_AGENT),
+    );
+    headers.insert(
+        COOKIE,
+        HeaderValue::from_str(&buffer).expect("Bad header value (cookies)"),
+    );
 
-        // There are two flavors of image: full size and standard. In the
-        // event there is no full-size image, fall back to standard.
-        self.image_url_pattern_fullsize
-            .captures(&page_content)
-            .map(|s| {
-                let url = s.get(1).unwrap().as_str().replace("&amp;", "&");
-                SizeOption::Full(url)
-            })
-            .or_else(|| {
-                self.image_url_pattern
-                    .captures(&page_content)
-                    .map(|s| SizeOption::Thumb(s.get(1).unwrap().as_str().into()))
-            })
-            .ok_or_else(|| Error::Extraction(ExtractionFailure::ImageUrl, url.into()))
-    }
-
-    fn read_batch(&self, content: &str) -> VecDeque<String> {
-        self.image_page_pattern
-            .captures_iter(content)
-            .map(|s| s.get(0).unwrap().as_str().into())
-            .collect()
-    }
-}
-
-impl Gallery for EHentaiGallery {
-    fn advance_by(&mut self, mut skip: usize) -> crate::Result<()> {
-        loop {
-            if skip == 0 {
-                return Ok(());
-            }
-
-            if self.count >= self.gallery_size {
-                if skip > self.queue.len() {
-                    self.queue.clear();
-                } else {
-                    self.queue.drain(..skip);
-                }
-                return Ok(());
-            }
-
-            if skip < self.queue.len() {
-                self.queue.drain(..skip);
-                return Ok(());
-            }
-
-            skip = skip.saturating_sub(self.queue.len());
-            self.queue.clear();
-            self.count += self.retrieve_batch()?;
-            self.page += 1;
-        }
-    }
-
-    fn next(&mut self) -> Option<crate::Result<GalleryItem>> {
-        // E-hentai has some peculiarities re: its gallery design that make the way we do things
-        // here a little strange. For a start, you'll never be shown an empty gallery page. An
-        // attempt to increment your position past the final page of a gallery will result in
-        // the final page being displayed again. Because of this, we'll keep track not only of
-        // our current page but also of the number of images we've encountered so far.
-        //
-        // This number should be compared to the total number of images expected, which must also
-        // be extracted from the gallery pages themselves, in order to know when we should cease
-        // iteration.
-
-        if self.queue.is_empty() {
-            if self.count >= self.gallery_size {
-                return None;
-            }
-
-            match self.retrieve_batch() {
-                Ok(count) => {
-                    self.count += count;
-                    self.page += 1;
-                }
-                Err(e) => return Some(Err(e)),
-            }
-        }
-
-        let image_page = self.queue.pop_front()?;
-        let image_url = match self.retrieve_image_url(&image_page) {
-            Ok(url) => url,
-            Err(e) => return Some(Err(e)),
-        };
-
-        match self.client.get(image_url.as_ref()).send() {
-            Ok(response) => Some(Ok(GalleryItem::new(image_url.unwrap(), response))),
-            Err(e) => Some(Err(e.into())),
-        }
-    }
+    builder.default_headers(headers).build().unwrap()
 }
 
 fn read_cookies(response: &Response) -> HashMap<String, String> {
@@ -255,34 +226,6 @@ fn read_cookies(response: &Response) -> HashMap<String, String> {
     }
 
     map
-}
-
-fn build_client(cookies: HashMap<String, String>) -> crate::Result<Client> {
-    use reqwest::header;
-    use std::fmt::Write;
-
-    let builder = Client::builder();
-    let mut headers = header::HeaderMap::new();
-    let mut buffer = String::from("nw=1");
-
-    for (key, value) in cookies {
-        let _ = write!(buffer, "; {}={}", key, value);
-    }
-
-    headers.insert(
-        header::ACCEPT,
-        header::HeaderValue::from_static("text/html"),
-    );
-    headers.insert(
-        header::USER_AGENT,
-        header::HeaderValue::from_static(super::USER_AGENT),
-    );
-    headers.insert(
-        header::COOKIE,
-        header::HeaderValue::from_str(&buffer).expect("Bad header value (cookies)"),
-    );
-
-    Ok(builder.default_headers(headers).build()?)
 }
 
 fn read_meta(url: &str, content: &str) -> crate::Result<(usize, usize)> {

@@ -5,12 +5,11 @@ use std::{
     iter::FromIterator,
 };
 
-// pub mod ehentai;
-// pub mod gelbooru;
-// pub mod rule34;
 pub mod beautymuscle;
+pub mod ehentai;
 pub mod fitnakedgirls;
 pub mod flist;
+pub mod gelbooru;
 pub mod girlswithmuscle;
 pub mod hentai_foundry;
 pub mod imgur;
