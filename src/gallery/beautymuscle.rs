@@ -20,8 +20,8 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<BmPager>> {
 
     Ok(PagedGallery {
         context: Context::new(),
-        current_page: VecDeque::new(),
         pager: BmPager::new(query),
+        current: Page::Empty,
     })
 }
 
@@ -65,22 +65,15 @@ impl Pager for BmPager {
 
     type Item = Url;
 
-    fn next_page(
-        &mut self,
-        context: &Self::Context,
-    ) -> Option<crate::Result<VecDeque<Self::Item>>> {
+    fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
         if self.is_complete {
-            return None;
+            return Ok(Page::Empty);
         }
 
-        let content = match context.load_content(&self.next_url()) {
-            Ok(content) => content,
-            Err(e) => return Some(Err(e)),
-        };
-
+        let content = context.load_content(&self.next_url())?;
         if content.is_empty() {
             self.is_complete = true;
-            return None;
+            return Ok(Page::Empty);
         }
 
         let document = Document::from(&content);
@@ -93,31 +86,32 @@ impl Pager for BmPager {
                     .map(|src| Url(context.thumbnail_size_pattern.replace(&*src, "").into()))
             });
 
-        Some(Ok(thumbs.collect()))
+        Ok(thumbs.collect())
     }
 }
 
 pub struct Context {
-    agent: Agent,
+    client: Client,
     thumbnail_size_pattern: Regex,
 }
 
 impl Context {
     fn new() -> Self {
         Self {
-            agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
+            client: Client::builder().user_agent(USER_AGENT).build().unwrap(),
             thumbnail_size_pattern: Regex::new(r"(-\d+x\d+)\.").unwrap(),
         }
     }
 
+    // FIXME: this has never been tested so... whatever, ok?
     fn load_content(&self, url: &str) -> crate::Result<String> {
-        let response = self.agent.get(url).call()?;
+        let response = self.client.get(url).send()?;
 
         // A 301 means we've run out of pages
         if response.status() == 301 {
             Ok(String::new())
         } else {
-            Ok(response.into_string()?)
+            Ok(response.text()?)
         }
     }
 }
@@ -128,9 +122,11 @@ pub struct Url(String);
 impl Downloadable for Url {
     type Context = Context;
 
-    type Output = UreqGalleryItem;
+    type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
-        Ok(UreqGalleryItem::new(context.agent.get(&self.0).call()?))
+        Ok(ResponseGalleryItem::new(
+            context.client.get(&self.0).send()?,
+        ))
     }
 }

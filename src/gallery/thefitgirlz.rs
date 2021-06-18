@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use nipper::{Document, Matcher};
 use regex::Regex;
 
@@ -22,7 +20,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
 
     Ok(PagedGallery {
         context: Context {
-            agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
+            client: Client::builder().user_agent(USER_AGENT).build().unwrap(),
             image_meta_selector: Matcher::new("meta").unwrap(),
             image_name_pattern: Regex::new(r"wp-content/uploads/(\d+)/(\d+)/(.+)").unwrap(),
         },
@@ -31,12 +29,12 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
             offset: 0,
             model,
         },
-        current_page: VecDeque::new(),
+        current: Page::Empty,
     })
 }
 
 pub struct Context {
-    agent: Agent,
+    client: Client,
     image_meta_selector: Matcher,
     image_name_pattern: Regex,
 }
@@ -51,12 +49,9 @@ impl Pager for FgPager {
     type Context = Context;
     type Item = Url;
 
-    fn next_page(
-        &mut self,
-        context: &Self::Context,
-    ) -> Option<crate::Result<std::collections::VecDeque<Self::Item>>> {
+    fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
         if self.is_complete {
-            return None;
+            return Ok(Page::Empty);
         }
 
         // https://thefitgirlz.com/gallery/valentina-lequeux/
@@ -71,18 +66,14 @@ impl Pager for FgPager {
         };
         self.offset += 1;
 
-        let content = match download_page(&url, &context.agent) {
-            Ok(content) => content,
-            Err(e) => return Some(Err(e)),
-        };
-
+        let content = download_page(&url, &context.client)?;
         let document = Document::from(&content);
         let links = document
             .select("a.gallery-img-link")
             .iter()
             .filter_map(|entity| entity.attr("href").map(|attr| Url(attr.to_string())));
 
-        Some(Ok(links.collect()))
+        Ok(links.collect())
     }
 }
 
@@ -90,8 +81,8 @@ impl Pager for FgPager {
 // regard to the end of paged results. That is, when you hit page 7 of 6, will
 // this throw an error, or will it send back a response devoid of links?
 // Option 2 is fine. Option 1 not so much.
-fn download_page(url: &str, agent: &Agent) -> crate::Result<String> {
-    Ok(agent.get(url).call()?.into_string()?)
+fn download_page(url: &str, client: &Client) -> crate::Result<String> {
+    Ok(client.get(url).send()?.text()?)
 }
 
 pub struct Url(String);
@@ -102,7 +93,7 @@ impl Downloadable for Url {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         // Step one: get the image url from the gallery page
-        let content = context.agent.get(&self.0).call()?.into_string()?;
+        let content = context.client.get(&self.0).send()?.text()?;
         let document = Document::from(&content);
         let url = document
             .select_matcher(&context.image_meta_selector)
@@ -140,7 +131,7 @@ impl Downloadable for Url {
         let month = captures.get(2).unwrap().as_str();
         let file = captures.get(3).unwrap().as_str();
 
-        let response = context.agent.get(&*url).call()?;
+        let response = context.client.get(&*url).send()?;
         Ok(NamedGalleryItem::new(
             response,
             format!("{}-{}-{}", year, month, file),

@@ -25,6 +25,9 @@ use crate::gallery::GalleryItem;
 
 pub type Result<T, E = error::Error> = std::result::Result<T, E>;
 
+// FIXME: maybe explore using https://lib.rs/crates/isahc
+// as opposed to reqwest or ureq?
+
 fn main() {
     if let Err(e) = run(&Opt::from_args()) {
         eprintln!("{}", e);
@@ -40,7 +43,6 @@ fn run(opt: &Opt) -> crate::Result<()> {
         .ok_or_else(|| Error::Unsupported(UnsupportedError::Route, opt.url().into()))?;
 
     match domain {
-        // "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
         // "e-hentai.org" => download(opt, ehentai::extract),
         // "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
         // "gelbooru.com" => download(opt, gelbooru::extract),
@@ -48,6 +50,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         // "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         // "rule34.xxx" => download(opt, rule34::extract),
         // "www.hentai-foundry.com" => download(opt, hentai_foundry::extract),
+        "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
         "imgur.com" => download(opt, imgur::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
         "www.beautymuscle.net" => download(opt, beautymuscle::extract),

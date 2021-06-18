@@ -3,15 +3,24 @@ use regex::Regex;
 use super::prelude::*;
 
 pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
+    use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
+
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT, HeaderValue::from_static("text/html"));
+
     let context = Context {
-        agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
+        client: Client::builder()
+            .user_agent(USER_AGENT)
+            .default_headers(headers)
+            .build()
+            .unwrap(),
         image_id_pattern: Regex::new(r#"imgid(\d+)"#).unwrap(),
         data_url_pattern: Regex::new(r#"images/full/\d+\.[^"]+"#).unwrap(),
     };
 
     Ok(PagedGallery {
         context,
-        current_page: VecDeque::new(),
+        current: Page::Empty,
         pager: GwmPager {
             name: read_name(url)?.into(),
             page: 1,
@@ -21,23 +30,19 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
 }
 
 pub struct Context {
-    agent: Agent,
+    client: Client,
     image_id_pattern: Regex,
     data_url_pattern: Regex,
 }
 
 impl Context {
-    fn get(&self, url: &str) -> UreqResponse {
-        self.agent.get(url).set("Accept", "text/html").call()
-    }
-
     fn get_page_content(&self, url: &str) -> crate::Result<String> {
-        Ok(self.get(&url)?.into_string()?)
+        Ok(self.client.get(url).send()?.text()?)
     }
 
     fn get_full_image_link(&self, id: &str) -> crate::Result<String> {
         let url = format!("https://www.girlswithmuscle.com/{}/", id);
-        let content = self.get(&url)?.into_string()?;
+        let content = self.client.get(&url).send()?.text()?;
         let data_url = self
             .data_url_pattern
             .captures(&content)
@@ -57,18 +62,12 @@ impl Pager for GwmPager {
 
     type Item = Id;
 
-    fn next_page(
-        &mut self,
-        context: &Self::Context,
-    ) -> Option<crate::Result<VecDeque<Self::Item>>> {
+    fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
         let url = format!(
             "https://www.girlswithmuscle.com/images/{}/?name={}",
             self.page, self.name,
         );
-        let text = match context.get_page_content(&url) {
-            Ok(text) => text,
-            Err(e) => return Some(Err(e)),
-        };
+        let text = context.get_page_content(&url)?;
         let items: VecDeque<_> = context
             .image_id_pattern
             .captures_iter(&text)
@@ -86,10 +85,10 @@ impl Pager for GwmPager {
 
         self.page += 1;
         if items == self.previous_items {
-            None
+            Ok(Page::Empty)
         } else {
             self.previous_items = items.clone();
-            Some(Ok(items))
+            Ok(Page::Items(items))
         }
     }
 }
@@ -99,11 +98,15 @@ pub struct Id(String);
 
 impl Downloadable for Id {
     type Context = Context;
-    type Output = UreqGalleryItem;
+    type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         let url = context.get_full_image_link(&self.0)?;
-        Ok(context.get(&url).map(UreqGalleryItem::new)?)
+        Ok(context
+            .client
+            .get(&url)
+            .send()
+            .map(ResponseGalleryItem::new)?)
     }
 }
 

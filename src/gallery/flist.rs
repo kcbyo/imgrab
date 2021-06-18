@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use regex::Regex;
 use serde::Deserialize;
@@ -17,15 +17,17 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FlistImage>> {
     }
 
     let context = Context::new();
-    let page_content = context.get(url)?.into_string()?;
+    let page_content = context.client.get(url).send()?.text()?;
     let character_id = read_character_id(url, &page_content)?;
     let inline = read_inlines(&page_content).unwrap_or_default();
     let links = read_links(&page_content).unwrap_or_default();
 
     let Template { profile, .. } = context
-        .configure_post("https://www.f-list.net/json/profile-images.json")
-        .send_form(&[("character_id", character_id)])?
-        .into_json()?;
+        .client
+        .post("https://www.f-list.net/json/profile-images.json")
+        .form(&[("character_id", character_id)])
+        .send()?
+        .json()?;
 
     let mut items = VecDeque::with_capacity(inline.len() + links.len() + profile.len());
     items.extend(inline.into_iter().map(FlistImage::Inline));
@@ -44,7 +46,7 @@ pub enum FlistImage {
 impl Downloadable for FlistImage {
     type Context = Context;
 
-    type Output = UreqGalleryItem;
+    type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         let response = match self {
@@ -55,46 +57,48 @@ impl Downloadable for FlistImage {
                     "https://static.f-list.net/images/charinline/{}/{}/{}.{}",
                     d, e, inline.hash, inline.extension
                 );
-                context.get(&url)?
+                context.client.get(&url).send()?
             }
             FlistImage::Profile(image) => {
                 let url = format!(
                     "https://static.f-list.net/images/charimage/{}.{}",
                     image.id, image.extension
                 );
-                context.get(&url)?
+                context.client.get(&url).send()?
             }
-            FlistImage::Link(url) => context.get(&url)?,
+            FlistImage::Link(url) => context.client.get(&url).send()?,
         };
 
-        Ok(UreqGalleryItem::new(response))
+        Ok(ResponseGalleryItem::new(response))
     }
 }
 
 pub struct Context {
-    agent: Agent,
+    client: Client,
 }
 
 impl Context {
     fn new() -> Self {
+        use reqwest::{
+            cookie::Jar,
+            header::{HeaderMap, HeaderValue, ACCEPT},
+        };
+
+        let cookie_store = Jar::default();
+        let url = "www.f-list.net".parse().unwrap();
+        cookie_store.add_cookie_str("warning=1", &url);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+
         Self {
-            agent: AgentBuilder::new().user_agent(USER_AGENT).build(),
+            client: Client::builder()
+                .user_agent(USER_AGENT)
+                .cookie_provider(Arc::new(cookie_store))
+                .default_headers(headers)
+                .build()
+                .unwrap(),
         }
-    }
-
-    fn get(&self, url: &str) -> Result<ureq::Response, ureq::Error> {
-        self.agent
-            .get(url)
-            .set("Accept", "application/json")
-            .set("Cookie", "warning=1")
-            .call()
-    }
-
-    fn configure_post(&self, url: &str) -> ureq::Request {
-        self.agent
-            .post(url)
-            .set("Accept", "application/json")
-            .set("Cookie", "warning=1")
     }
 }
 

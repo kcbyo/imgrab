@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     io::{self, Write},
+    iter::FromIterator,
 };
 
 // pub mod ehentai;
@@ -11,14 +12,66 @@ use std::{
 // pub mod nhentai;
 // pub mod nsfwalbum;
 // pub mod rule34;
-// pub mod sankakubeta;
 pub mod beautymuscle;
 pub mod flist;
 pub mod girlswithmuscle;
 pub mod imgur;
+pub mod sankakubeta;
 pub mod thefitgirlz;
 
+use reqwest::blocking::Response;
+
 use crate::storage::NameContext;
+
+pub enum Page<T> {
+    Items(VecDeque<T>),
+    Empty,
+}
+
+impl<T> Page<T> {
+    fn pop(&mut self) -> Option<T> {
+        match self {
+            Page::Items(items) => items.pop_front(),
+            Page::Empty => None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Page::Items(items) => items.len(),
+            Page::Empty => 0,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            Page::Items(items) => items.is_empty(),
+            Page::Empty => true,
+        }
+    }
+
+    fn drain(&mut self, count: usize) {
+        if let Page::Items(items) = self {
+            let _ = items.drain(..count);
+        }
+    }
+
+    fn clear(&mut self) {
+        *self = Page::Empty;
+    }
+}
+
+impl<A> FromIterator<A> for Page<A> {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        Page::Items(iter.into_iter().collect())
+    }
+}
+
+impl<T> Default for Page<T> {
+    fn default() -> Self {
+        Page::Empty
+    }
+}
 
 pub trait Gallery {
     type Item: GalleryItem;
@@ -34,38 +87,38 @@ pub trait Gallery {
 
 pub trait GalleryItem {
     fn context(&self) -> NameContext;
-    fn write<W: Write + ?Sized>(self, writer: &mut W) -> io::Result<u64>;
+    fn write<W: Write + ?Sized>(self, writer: &mut W) -> crate::Result<u64>;
 }
 
-/// A basic gallery item implemented on only a bare [`ureq::Response`]
-pub struct UreqGalleryItem {
-    response: ureq::Response,
+/// A basic gallery item implemented on only a bare [`reqwest::blocking::Response`]
+pub struct ResponseGalleryItem {
+    response: Response,
 }
 
-impl UreqGalleryItem {
-    pub fn new(response: ureq::Response) -> Self {
+impl ResponseGalleryItem {
+    pub fn new(response: Response) -> Self {
         Self { response }
     }
 }
 
-impl GalleryItem for UreqGalleryItem {
+impl GalleryItem for ResponseGalleryItem {
     fn context(&self) -> NameContext {
         NameContext::from_response(&self.response)
     }
 
-    fn write<W: io::Write + ?Sized>(self, writer: &mut W) -> io::Result<u64> {
-        io::copy(&mut self.response.into_reader(), writer)
+    fn write<W: io::Write + ?Sized>(mut self, writer: &mut W) -> crate::Result<u64> {
+        Ok(self.response.copy_to(writer)?)
     }
 }
 
 /// A gallery item with an explicitly-overridden name
 pub struct NamedGalleryItem {
     name: String,
-    response: ureq::Response,
+    response: Response,
 }
 
 impl NamedGalleryItem {
-    pub fn new(response: ureq::Response, name: impl Into<String>) -> Self {
+    pub fn new(response: Response, name: impl Into<String>) -> Self {
         Self {
             response,
             name: name.into(),
@@ -75,11 +128,11 @@ impl NamedGalleryItem {
 
 impl GalleryItem for NamedGalleryItem {
     fn context(&self) -> NameContext {
-        NameContext::new(self.response.get_url(), Some(Cow::from(&self.name)))
+        NameContext::new(self.response.url().as_ref(), Some(Cow::from(&self.name)))
     }
 
-    fn write<W: io::Write + ?Sized>(self, writer: &mut W) -> io::Result<u64> {
-        io::copy(&mut self.response.into_reader(), writer)
+    fn write<W: io::Write + ?Sized>(mut self, writer: &mut W) -> crate::Result<u64> {
+        Ok(self.response.copy_to(writer)?)
     }
 }
 
@@ -94,8 +147,7 @@ pub trait Downloadable {
 pub trait Pager {
     type Context;
     type Item: Downloadable<Context = Self::Context>;
-    fn next_page(&mut self, context: &Self::Context)
-        -> Option<crate::Result<VecDeque<Self::Item>>>;
+    fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>>;
 }
 
 pub struct UnpagedGallery<T: Downloadable> {
@@ -126,7 +178,7 @@ impl<T: Downloadable> Gallery for UnpagedGallery<T> {
 pub struct PagedGallery<T: Pager> {
     context: T::Context,
     pager: T,
-    current_page: VecDeque<T::Item>,
+    current: Page<T::Item>,
 }
 
 impl<T> Gallery for PagedGallery<T>
@@ -136,16 +188,15 @@ where
     type Item = <<T as Pager>::Item as Downloadable>::Output;
 
     fn next(&mut self) -> Option<crate::Result<Self::Item>> {
-        if self.current_page.is_empty() {
-            match self.pager.next_page(&self.context)? {
-                Ok(next_page) => self.current_page = next_page,
+        if self.current.is_empty() {
+            self.current = match self.pager.next_page(&self.context) {
+                Ok(page) => page,
                 Err(e) => return Some(Err(e)),
-            }
-
+            };
             return self.next();
         }
 
-        let item = self.current_page.pop_front()?;
+        let item = self.current.pop()?;
         Some(item.download(&self.context))
     }
 
@@ -154,21 +205,17 @@ where
         let mut skip_remaining = n;
 
         loop {
-            if self.current_page.is_empty() {
-                self.current_page = match self.pager.next_page(&self.context) {
-                    Some(Ok(next_page)) => next_page,
-                    Some(Err(e)) => return Err(e),
-                    None => return Ok(0),
-                };
+            if self.current.is_empty() {
+                self.current = self.pager.next_page(&self.context)?;
             }
 
-            if self.current_page.len() > skip_remaining {
-                let _ = self.current_page.drain(..skip_remaining);
+            if self.current.len() > skip_remaining {
+                let _ = self.current.drain(skip_remaining);
                 return Ok(skipped + skip_remaining);
             } else {
-                skipped += self.current_page.len();
-                skip_remaining -= self.current_page.len();
-                self.current_page.clear();
+                skipped += self.current.len();
+                skip_remaining -= self.current.len();
+                self.current.clear();
             }
         }
     }
@@ -178,13 +225,12 @@ mod prelude {
     pub use crate::{
         error::{Error, ExtractionFailure, UnsupportedError},
         gallery::{
-            Downloadable, NamedGalleryItem, PagedGallery, Pager, UnpagedGallery, UreqGalleryItem,
+            Downloadable, NamedGalleryItem, Page, PagedGallery, Pager, ResponseGalleryItem,
+            UnpagedGallery,
         },
     };
+    pub use reqwest::blocking::{Client, Response};
     pub use std::collections::VecDeque;
-    pub use ureq::{Agent, AgentBuilder};
-
-    pub type UreqResponse = Result<ureq::Response, ureq::Error>;
 
     pub static USER_AGENT: &str =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";

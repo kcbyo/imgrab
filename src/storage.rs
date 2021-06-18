@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use reqwest::blocking::Response;
+
 #[derive(Debug)]
 pub struct StorageProvider {
     path: PathBuf,
@@ -58,12 +60,13 @@ impl<'a> NameContext<'a> {
         NameContext { url, name }
     }
 
-    pub fn from_response(response: &'a ureq::Response) -> Self {
-        static CONTENT_DISPOSITION: &str = "Content-Disposition";
-
-        let name = response.header(CONTENT_DISPOSITION).and_then(read_filename);
-
-        NameContext::new(response.get_url(), name.map(Cow::from))
+    pub fn from_response(response: &'a Response) -> Self {
+        use reqwest::header::CONTENT_DISPOSITION;
+        let name = response
+            .headers()
+            .get(CONTENT_DISPOSITION)
+            .and_then(|header| header.to_str().ok().and_then(read_filename));
+        NameContext::new(response.url().as_ref(), name.map(Cow::from))
     }
 
     /// Gets the best name from the gallery.
