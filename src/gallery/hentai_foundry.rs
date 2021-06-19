@@ -121,7 +121,7 @@ impl Downloadable for HfUrl {
         let url = extract_by_pattern(&context.image_pattern, &text)
             .or_else(|| extract_by_pattern(&context.full_image_pattern, &text))
             .map(|route| String::from("https://pictures.hentai-foundry.com/") + route)
-            .ok_or_else(|| Error::Extraction(ExtractionFailure::ImageUrl, self.0.into()))?;
+            .ok_or(Error::Extraction(ExtractionFailure::ImageUrl, self.0))?;
 
         Ok(context
             .client

@@ -22,6 +22,7 @@ use reqwest::blocking::Response;
 
 use crate::storage::NameContext;
 
+#[derive(Clone, Debug)]
 pub enum Page<T> {
     Items(VecDeque<T>),
     Empty,
@@ -189,10 +190,10 @@ where
     fn next(&mut self) -> Option<crate::Result<Self::Item>> {
         if self.current.is_empty() {
             self.current = match self.pager.next_page(&self.context) {
+                Ok(page) if page.is_empty() => return None,
                 Ok(page) => page,
                 Err(e) => return Some(Err(e)),
             };
-            return self.next();
         }
 
         let item = self.current.pop()?;

@@ -18,10 +18,31 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<BmPager>> {
         _ => unreachable!("at least one match arm required"),
     };
 
+    // Before we return, it's necessary for us to grab the very first page
+    // and take 1) the page count and 2) the first set of results, because
+    // otherwise there's no real way to know when this pager needs to stop.
+
+    let context = Context::new();
+    let mut pager = BmPager::new(query);
+
+    let text = context.client.get(&pager.next_url()).send()?.text()?;
+    let pattern = Regex::new(r"Page \d+ of (\d+)").unwrap();
+    let count = pattern
+        .captures(&text)
+        .and_then(|x| x.get(1).map(|x| x.as_str()))
+        .and_then(|x| x.parse::<usize>().ok())
+        .ok_or_else(|| {
+            Error::Extraction(
+                ExtractionFailure::Metadata,
+                String::from("failed to retrieve page count"),
+            )
+        })?;
+
+    pager.set_max_page(count);
     Ok(PagedGallery {
-        context: Context::new(),
-        pager: BmPager::new(query),
-        current: Page::Empty,
+        current: context.read_thumbs(&text),
+        context,
+        pager,
     })
 }
 
@@ -33,7 +54,7 @@ enum Query {
 pub struct BmPager {
     query: Query,
     page: usize,
-    is_complete: bool,
+    max_page: Option<usize>,
 }
 
 impl BmPager {
@@ -41,19 +62,23 @@ impl BmPager {
         Self {
             query,
             page: 0,
-            is_complete: false,
+            max_page: None,
         }
+    }
+
+    fn set_max_page(&mut self, max_page: usize) {
+        self.max_page = Some(max_page);
     }
 
     fn next_url(&mut self) -> String {
         self.page += 1;
         match &self.query {
             Query::Tag(tag) => match self.page {
-                0 => format!("https://www.beautymuscle.net/pin/tag/{}/", tag),
+                1 => format!("https://www.beautymuscle.net/pin/tag/{}/", tag),
                 n => format!("https://www.beautymuscle.net/pin/tag/{}/page/{}/", tag, n),
             },
             Query::Search(search) => match self.page {
-                0 => format!("https://www.beautymuscle.net/?s={}&q=", search),
+                1 => format!("https://www.beautymuscle.net/?s={}&q=", search),
                 n => format!("https://www.beautymuscle.net/page/{}/?s={}&q", n, search),
             },
         }
@@ -66,27 +91,18 @@ impl Pager for BmPager {
     type Item = Url;
 
     fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
-        if self.is_complete {
+        // This sure would be easier if they'd go on and stabilize Option::contains()
+        if self
+            .max_page
+            .as_ref()
+            .map(|&max_page| max_page == self.page)
+            .unwrap_or_default()
+        {
             return Ok(Page::Empty);
         }
 
-        let content = context.load_content(&self.next_url())?;
-        if content.is_empty() {
-            self.is_complete = true;
-            return Ok(Page::Empty);
-        }
-
-        let document = Document::from(&content);
-        let thumbs = document
-            .select("a.featured-thumb")
-            .iter()
-            .filter_map(|element| {
-                element
-                    .attr("src")
-                    .map(|src| Url(context.thumbnail_size_pattern.replace(&*src, "").into()))
-            });
-
-        Ok(thumbs.collect())
+        let text = context.client.get(&self.next_url()).send()?.text()?;
+        Ok(context.read_thumbs(&text))
     }
 }
 
@@ -103,20 +119,32 @@ impl Context {
         }
     }
 
-    // FIXME: this has never been tested so... whatever, ok?
-    fn load_content(&self, url: &str) -> crate::Result<String> {
-        let response = self.client.get(url).send()?;
-
-        // A 301 means we've run out of pages
-        if response.status() == 301 {
-            Ok(String::new())
-        } else {
-            Ok(response.text()?)
-        }
+    fn read_thumbs(&self, text: &str) -> Page<Url> {
+        let document = Document::from(text);
+        document
+            .select("img.featured-thumb")
+            .iter()
+            .filter_map(|element| {
+                element.attr("src").map(|src| {
+                    if let Some(size_match) = self
+                        .thumbnail_size_pattern
+                        .captures(&*src)
+                        .and_then(|x| x.get(1))
+                    {
+                        let left = &src[..size_match.start()];
+                        let right = &src[size_match.end()..];
+                        Url(left.to_owned() + right)
+                    } else {
+                        Url(src.to_string())
+                    }
+                })
+            })
+            .collect()
     }
 }
 
 /// represents the actual image url
+#[derive(Debug)]
 pub struct Url(String);
 
 impl Downloadable for Url {
