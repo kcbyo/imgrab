@@ -85,7 +85,7 @@ impl Context {
         };
 
         let cookie_store = Jar::default();
-        let url = "www.f-list.net".parse().unwrap();
+        let url = "http://www.f-list.net".parse().unwrap();
         cookie_store.add_cookie_str("warning=1", &url);
 
         let mut headers = HeaderMap::new();
