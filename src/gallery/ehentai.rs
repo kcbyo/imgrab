@@ -5,9 +5,9 @@ use serde::Serialize;
 
 use crate::config::{Configuration, Key};
 
-use super::prelude::*;
+use super::{Gallery, prelude::*};
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<EhentaiPager>> {
+pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
     // So, one ugly fact about the e-hentai implementation is that the only way to get
     // full-sized images from e-hentai is by logging in. I've already figured out (read:
     // implemented in another program) their authentication mechanism, so it's not that
@@ -31,7 +31,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<EhentaiPager>> {
         .map(|s| EhentaiUrl(s.get(0).unwrap().as_str().into()))
         .collect();
 
-    Ok(PagedGallery {
+    Ok(EHentaiGallery {
         context: Context::with_client(client),
         pager: EhentaiPager {
             base_url: url.into(),
@@ -101,6 +101,7 @@ impl Context {
             full_size_pattern: Regex::new(r#"<a href="([^"]+)">Download original"#).unwrap(),
         }
     }
+
     fn retrieve_image_url(&self, url: &str) -> crate::Result<String> {
         // There are two flavors of image: full size and standard. In the
         // event there is no full-size image, fall back to standard.
@@ -137,6 +138,64 @@ impl Downloadable for EhentaiUrl {
             .get(&url)
             .send()
             .map(ResponseGalleryItem::new)?)
+    }
+}
+
+// This specialized gallery impl exists to improve efficiency
+// in skipping back pages for ehentai.
+pub struct EHentaiGallery {
+    context: Context,
+    pager: EhentaiPager,
+    current: Page<EhentaiUrl>,
+}
+
+impl Gallery for EHentaiGallery {
+    type Item = ResponseGalleryItem;
+
+    fn next(&mut self) -> Option<crate::Result<Self::Item>> {
+        // Copied from PagedGallery implementation;
+        // there might be a better way to share code here.
+        if self.current.is_empty() {
+            self.current = match self.pager.next_page(&self.context) {
+                Ok(page) if page.is_empty() => return None,
+                Ok(page) => page,
+                Err(e) => return Some(Err(e)),
+            };
+        }
+
+        let item = self.current.pop()?;
+        Some(item.download(&self.context))
+    }
+
+    fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
+        let mut skipped = 0;
+        let mut skip_remaining = n;
+
+        // This seems to work for large skip values; it is untested
+        // for small ones.
+        let advance_pages = n / 40;
+        if advance_pages > 0 {
+            self.pager.page += advance_pages - 1;
+            skipped = advance_pages * 40;
+            skip_remaining = n - skipped;
+            self.current = self.pager.next_page(&self.context)?;
+        }
+        
+        // Copied from PagedGallery impl
+        loop {
+            if self.current.is_empty() {
+                self.current = self.pager.next_page(&self.context)?;
+            }
+
+            if self.current.len() > skip_remaining {
+                let _ = self.current.drain(skip_remaining);
+                return Ok(skipped + skip_remaining);
+            } else {
+                skipped += self.current.len();
+                skip_remaining -= self.current.len();
+                self.current.clear();
+            }
+        }
     }
 }
 
