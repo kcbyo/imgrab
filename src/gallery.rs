@@ -11,6 +11,7 @@ pub mod fitnakedgirls;
 pub mod flist;
 pub mod gelbooru;
 pub mod girlswithmuscle;
+pub mod hdporn;
 pub mod hentai_foundry;
 pub mod imgur;
 pub mod nhentai;

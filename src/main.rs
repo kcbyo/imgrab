@@ -43,11 +43,12 @@ fn run(opt: &Opt) -> crate::Result<()> {
         .ok_or_else(|| Error::Unsupported(UnsupportedError::Route, opt.url().into()))?;
 
     match domain {
-        "e-hentai.org" => download(opt, ehentai::extract),
         "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
+        "e-hentai.org" => download(opt, ehentai::extract),
         "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
-        "imgur.com" => download(opt, imgur::extract),
         "gelbooru.com" => download(opt, gelbooru::extract),
+        "hdporn.pics" => download(opt, hdporn::extract),
+        "imgur.com" => download(opt, imgur::extract),
         "nhentai.net" => download(opt, nhentai::extract),
         "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
