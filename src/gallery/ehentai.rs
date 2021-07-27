@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs};
 
 use regex::Regex;
 use serde::Serialize;
 
 use crate::config::{Configuration, Key};
 
-use super::{Gallery, prelude::*};
+use super::{prelude::*, Gallery};
 
 pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
     // So, one ugly fact about the e-hentai implementation is that the only way to get
@@ -180,7 +180,7 @@ impl Gallery for EHentaiGallery {
             skip_remaining = n - skipped;
             self.current = self.pager.next_page(&self.context)?;
         }
-        
+
         // Copied from PagedGallery impl
         loop {
             if self.current.is_empty() {
@@ -289,16 +289,15 @@ fn read_cookies(response: &Response) -> HashMap<String, String> {
 
 fn read_meta(url: &str, content: &str) -> crate::Result<(usize, usize)> {
     let pattern =
-        Regex::new(r#"<p class="gpc">Showing (\d+) - (\d+) of (\d+) images</p>"#).unwrap();
+        Regex::new(r#"<p class="gpc">Showing 1 - ([0-9,]+) of ([0-9,]+) images</p>"#).unwrap();
     let captures = pattern
         .captures(content)
         .ok_or_else(|| Error::Extraction(ExtractionFailure::Metadata, url.into()))?;
 
-    let page_start = read_num(captures.get(1).unwrap().as_str())?;
-    let page_end = read_num(captures.get(2).unwrap().as_str())?;
-    let gallery_size = read_num(captures.get(3).unwrap().as_str())?;
+    let page_length = read_num(captures.get(1).unwrap().as_str())?;
+    let gallery_size = read_num(&captures.get(2).unwrap().as_str().replace(',', ""))?;
 
-    Ok((page_end - page_start + 1, gallery_size))
+    Ok((page_length, gallery_size))
 }
 
 fn read_num(s: &str) -> crate::Result<usize> {

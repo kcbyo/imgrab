@@ -6,7 +6,10 @@
 use crate::gallery::prelude::*;
 
 pub fn extract(url: &str) -> crate::Result<UnpagedGallery<Image>> {
-    let client = Client::builder().user_agent(USER_AGENT).cookie_store(true).build()?;
+    let client = Client::builder()
+        .user_agent(USER_AGENT)
+        .cookie_store(true)
+        .build()?;
     let text = client.get(url).send()?.text()?;
     let document = nipper::Document::from(&text);
 
