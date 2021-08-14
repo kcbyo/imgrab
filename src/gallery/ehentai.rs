@@ -168,6 +168,7 @@ impl Gallery for EHentaiGallery {
     }
 
     fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
+        self.pager.paged_count += n;
         let mut skipped = 0;
         let mut skip_remaining = n;
 
