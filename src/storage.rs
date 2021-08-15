@@ -21,6 +21,7 @@ impl StorageProvider {
         }
     }
 
+    // FIXME: this method is perfectly happy to create paths that overwrite previous paths.
     pub fn create_path(&mut self, context: NameContext) -> PathBuf {
         // Our name process may be a little branchy, but it's been abstracted a bit...
         //
