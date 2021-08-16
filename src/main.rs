@@ -25,9 +25,6 @@ use crate::gallery::GalleryItem;
 
 pub type Result<T, E = error::Error> = std::result::Result<T, E>;
 
-// FIXME: maybe explore using https://lib.rs/crates/isahc
-// as opposed to reqwest or ureq?
-
 fn main() {
     if let Err(e) = run(&Opt::from_args()) {
         eprintln!("{}", e);

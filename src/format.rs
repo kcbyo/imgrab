@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn duration_format() {
-        let duration = Duration::hours(3) + Duration::minutes(03) + Duration::seconds(03);
+        let duration = Duration::hours(3) + Duration::minutes(03) + Duration::seconds(13);
         let duration = super::DurationFormatter(duration).to_string();
         assert_eq!("3+03:13", duration);
     }

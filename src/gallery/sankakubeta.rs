@@ -68,8 +68,8 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<SankakuPager>> {
     let LoginResponse { access_token, .. } = client
         .post("https://capi-v2.sankakucomplex.com/auth/token")
         .json(&LoginRequest {
-            login: &username,
-            password: &password,
+            login: username,
+            password,
         })
         .send()?
         .json()?;

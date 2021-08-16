@@ -52,7 +52,7 @@ impl Display for Error {
             }
             Error::Url(_) => f.write_str("Bad url"),
 
-            Error::Other(message, _) => f.write_str(&message),
+            Error::Other(message, _) => f.write_str(message),
         }
     }
 }
