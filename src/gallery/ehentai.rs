@@ -124,6 +124,7 @@ impl Context {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct EhentaiUrl(String);
 
 impl Downloadable for EhentaiUrl {
@@ -168,7 +169,6 @@ impl Gallery for EHentaiGallery {
     }
 
     fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
-        self.pager.paged_count += n;
         let mut skipped = 0;
         let mut skip_remaining = n;
 
@@ -177,6 +177,7 @@ impl Gallery for EHentaiGallery {
         let advance_pages = n / 40;
         if advance_pages > 0 {
             self.pager.page += advance_pages - 1;
+            self.pager.paged_count = advance_pages * 40;
             skipped = advance_pages * 40;
             skip_remaining = n - skipped;
             self.current = self.pager.next_page(&self.context)?;
