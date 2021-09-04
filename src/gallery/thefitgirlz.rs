@@ -4,20 +4,7 @@ use regex::Regex;
 use super::prelude::*;
 
 pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
-    let pattern = Regex::new("thefitgirlz.com/gallery/([^/]+)/").unwrap();
-    let model = pattern
-        .captures(url)
-        .ok_or_else(|| {
-            Error::Unsupported(
-                UnsupportedError::Route,
-                String::from("unable to get model name from url"),
-            )
-        })?
-        .get(1)
-        .unwrap()
-        .as_str()
-        .to_owned();
-
+    let model = extract_model_name(url)?;
     Ok(PagedGallery {
         context: Context {
             client: Client::builder().user_agent(USER_AGENT).build().unwrap(),
@@ -31,6 +18,19 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
         },
         current: Page::Empty,
     })
+}
+
+fn extract_model_name(url: &str) -> Result<String, Error> {
+    let pattern = Regex::new("thefitgirlz.com/gallery/([^/]+)/?").unwrap();
+    pattern
+        .captures(url)
+        .ok_or_else(|| {
+            Error::Unsupported(
+                UnsupportedError::Route,
+                String::from("unable to get model name from url"),
+            )
+        })
+        .map(|x| x.get(1).unwrap().as_str().to_owned())
 }
 
 pub struct Context {
@@ -136,5 +136,14 @@ impl Downloadable for Url {
             response,
             format!("{}-{}-{}", year, month, file),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn can_extract_model_name() {
+        assert!(super::extract_model_name("https://thefitgirlz.com/gallery/alicia-marie/").is_ok());
+        assert!(super::extract_model_name("https://thefitgirlz.com/gallery/alicia-marie").is_ok());
     }
 }
