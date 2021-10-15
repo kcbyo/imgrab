@@ -1,7 +1,18 @@
 use regex::Regex;
 use serde::Deserialize;
 
-use super::prelude::*;
+use super::{prelude::*, Gallery};
+
+pub fn extract(url: &str) -> crate::Result<Rule34Gallery> {
+    let search = extract_search(url)?;
+    let pager = Rule34Pager { search, idx: 0 };
+
+    Ok(Rule34Gallery {
+        context: Context::new(),
+        pager,
+        current: Page::Empty,
+    })
+}
 
 pub struct Context {
     client: Client,
@@ -94,17 +105,6 @@ impl ImageMetadata {
     }
 }
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<Rule34Pager>> {
-    let search = extract_search(url)?;
-    let pager = Rule34Pager { search, idx: 0 };
-
-    Ok(PagedGallery {
-        context: Context::new(),
-        pager: pager,
-        current: Page::Empty,
-    })
-}
-
 pub struct Rule34Pager {
     search: String,
     idx: usize,
@@ -134,6 +134,64 @@ impl Pager for Rule34Pager {
     fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
         let text = context.client.get(&self.get_url()).send()?.text()?;
         Ok(context.get_gallery_page_links(&text))
+    }
+}
+
+// This specialized gallery impl exists solely to provide specialized
+// skip behavior for rule34. Sure wish the rust crew would go on and
+// merge specialization....
+pub struct Rule34Gallery {
+    context: Context,
+    pager: Rule34Pager,
+    current: Page<ImageId>,
+}
+
+impl Gallery for Rule34Gallery {
+    type Item = ResponseGalleryItem;
+
+    // Copy/paste from standard gallery implementation
+    fn next(&mut self) -> Option<crate::Result<Self::Item>> {
+        if self.current.is_empty() {
+            self.current = match self.pager.next_page(&self.context) {
+                Ok(page) if page.is_empty() => return None,
+                Ok(page) => page,
+                Err(e) => return Some(Err(e)),
+            };
+        }
+
+        let item = self.current.pop()?;
+        Some(item.download(&self.context))
+    }
+
+    fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
+        const RULE34_PAGE_SIZE: usize = 42; // NEVER CHANGE, GUYS!
+
+        let mut skipped = 0;
+        let mut skip_remaining = n;
+
+        let advance_pages = n / RULE34_PAGE_SIZE;
+        if advance_pages > 0 {
+            skipped = advance_pages * RULE34_PAGE_SIZE;
+            skip_remaining -= skipped;
+            self.pager.idx += skipped;
+            self.current = self.pager.next_page(&self.context)?;
+        }
+
+        // Copied from PagedGallery impl
+        loop {
+            if self.current.is_empty() {
+                self.current = self.pager.next_page(&self.context)?;
+            }
+
+            if self.current.len() > skip_remaining {
+                let _ = self.current.drain(skip_remaining);
+                return Ok(skipped + skip_remaining);
+            } else {
+                skipped += self.current.len();
+                skip_remaining -= self.current.len();
+                self.current.clear();
+            }
+        }
     }
 }
 
