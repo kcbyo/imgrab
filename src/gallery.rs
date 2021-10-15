@@ -16,6 +16,7 @@ pub mod hentai_foundry;
 pub mod imgur;
 pub mod nhentai;
 pub mod nsfwalbum;
+pub mod rule34;
 pub mod sankakubeta;
 pub mod thefitgirlz;
 

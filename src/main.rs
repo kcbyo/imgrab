@@ -48,6 +48,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         "imgur.com" => download(opt, imgur::extract),
         "nhentai.net" => download(opt, nhentai::extract),
         "nsfwalbum.com" => download(opt, nsfwalbum::extract),
+        "rule34.xxx" => download(opt, rule34::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
         "www.beautymuscle.net" => download(opt, beautymuscle::extract),
         "www.f-list.net" => download(opt, flist::extract),

@@ -41,7 +41,6 @@ impl Display for Error {
                 }
                 ExtractionFailure::ImageUrl => write!(f, "Unable to extract image url at {}", url),
             },
-
             Error::Io(_) => f.write_str("IO error"),
             Error::Network(_) => f.write_str("Network error"),
             Error::Unsupported(UnsupportedError::Domain, url) => {
@@ -51,7 +50,6 @@ impl Display for Error {
                 write!(f, "Unsupported object type: {}", url)
             }
             Error::Url(_) => f.write_str("Bad url"),
-
             Error::Other(message, _) => f.write_str(message),
         }
     }
@@ -66,7 +64,6 @@ impl error::Error for Error {
             Error::Network(e) => Some(e),
             Error::Unsupported(..) => None,
             Error::Url(e) => Some(e),
-
             Error::Other(_, e) => Some(e.as_ref()),
         }
     }
