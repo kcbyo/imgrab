@@ -215,7 +215,7 @@ fn build_client() -> Client {
 
     use reqwest::{cookie::Jar, Url};
 
-    let url: Url = "rule34.xxx".parse().unwrap();
+    let url: Url = "https://rule34.xxx".parse().unwrap();
     let jar = Jar::default();
     jar.add_cookie_str("gdpr=1", &url);
     jar.add_cookie_str("gdpr-disable-ga=1", &url);
