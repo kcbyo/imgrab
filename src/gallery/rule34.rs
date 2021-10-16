@@ -79,10 +79,11 @@ impl Downloadable for ImageId {
 
         let text = context.client.get(&self.url()).send()?.text()?;
         let meta = context.get_image_metadata(&text)?;
+        let url = meta.url();
 
         Ok(context
             .client
-            .get(&meta.url())
+            .get(&url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }
@@ -133,6 +134,8 @@ impl Pager for Rule34Pager {
 
     fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
         let text = context.client.get(&self.get_url()).send()?.text()?;
+        let links = context.get_gallery_page_links(&text);
+        self.idx += links.len();
         Ok(context.get_gallery_page_links(&text))
     }
 }
