@@ -49,7 +49,8 @@ impl Pager for GelbooruPager {
         };
         self.page += 1;
 
-        let page: VecDeque<Image> = context.get(&request.format()).send()?.json()?;
+        let response: Response = context.get(&request.format()).send()?.json()?;
+        let page = response.into_posts();
         if page.is_empty() {
             self.is_complete = true;
             Ok(Page::Empty)
@@ -60,10 +61,19 @@ impl Pager for GelbooruPager {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Response {
+    #[serde(rename = "post")]
+    posts: VecDeque<Image>,
+}
+
+impl Response {
+    fn into_posts(self) -> VecDeque<Image> {
+        self.posts
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Image {
-    // This ID serves no purpose that I'm aware of just yet, but...
-    // Meh. Whatever, ok?
-    id: u32,
     file_url: String,
 }
 
@@ -124,16 +134,6 @@ fn read_tags(url: &str) -> crate::Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::Image;
-
-    #[test]
-    fn can_deserialize() -> serde_json::Result<()> {
-        let payload = include_str!("../../resource/gelbooru/search.json");
-        let result: Vec<Image> = serde_json::from_str(payload)?;
-        assert_eq!(10, result.len());
-        Ok(())
-    }
-
     #[test]
     fn can_read_tags() -> crate::Result<()> {
         let url = "https://gelbooru.com/index.php?page=post&s=list&tags=text+tags";
