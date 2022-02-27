@@ -51,11 +51,12 @@ impl Pager for GelbooruPager {
 
         let response: Response = context.get(&request.format()).send()?.json()?;
         let page = response.into_posts();
-        if page.is_empty() {
-            self.is_complete = true;
-            Ok(Page::Empty)
-        } else {
-            Ok(Page::Items(page))
+        match page {
+            Some(page) => Ok(Page::Items(page)),
+            None => {
+                self.is_complete = true;
+                Ok(Page::Empty)
+            }
         }
     }
 }
@@ -63,11 +64,11 @@ impl Pager for GelbooruPager {
 #[derive(Debug, Deserialize)]
 pub struct Response {
     #[serde(rename = "post")]
-    posts: VecDeque<Image>,
+    posts: Option<VecDeque<Image>>,
 }
 
 impl Response {
-    fn into_posts(self) -> VecDeque<Image> {
+    fn into_posts(self) -> Option<VecDeque<Image>> {
         self.posts
     }
 }
