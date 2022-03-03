@@ -71,6 +71,7 @@ fn download<T: Gallery>(
     }
 
     let current_dir = env::current_dir()?;
+    let canonical_base_dir = current_dir.canonicalize()?;
     let overwrite = opt.overwrite();
     let waiter = opt
         .wait()
@@ -92,7 +93,7 @@ fn download<T: Gallery>(
             Ok(item) => {
                 let path = storage.create_path(item.context());
                 if !overwrite && existing_files.contains(&path) {
-                    if let Some(file_path) = pathdiff::diff_paths(&path, &current_dir) {
+                    if let Ok(file_path) = shorten_path(&canonical_base_dir, &path) {
                         println!(
                             "{} {} has already been downloaded",
                             idx + 1,
@@ -102,7 +103,7 @@ fn download<T: Gallery>(
                 } else {
                     let mut target = File::create(&path)?;
                     bytes_written += item.write(&mut target)?;
-                    if let Some(file_path) = pathdiff::diff_paths(&path, &current_dir) {
+                    if let Ok(file_path) = shorten_path(&canonical_base_dir, &path) {
                         println!("{} {}", idx + 1, file_path.display());
                     }
                 }
@@ -136,4 +137,12 @@ fn read_existing_files(path: impl AsRef<Path>) -> Result<HashSet<PathBuf>> {
 
 fn is_complete(count: usize, take: Option<usize>) -> bool {
     take.map(|take| take == count).unwrap_or_default()
+}
+
+fn shorten_path(canonical_base_dir: &Path, path: &Path) -> Result<PathBuf> {
+    Ok(path
+        .canonicalize()?
+        .strip_prefix(canonical_base_dir)
+        .unwrap_or(path)
+        .into())
 }
