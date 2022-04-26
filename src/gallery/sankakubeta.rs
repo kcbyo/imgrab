@@ -14,10 +14,10 @@ struct LoginRequest<'a> {
 
 #[derive(Clone, Debug, Deserialize)]
 struct LoginResponse {
-    success: bool,
-    token_type: String,
+    // success: bool,
+    // token_type: String,
     access_token: String,
-    refresh_token: String,
+    // refresh_token: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -29,19 +29,19 @@ struct PageResponse {
 #[derive(Clone, Debug, Deserialize)]
 struct PageResponseMetadata {
     next: Option<String>,
-    prev: Option<String>,
+    // prev: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Image {
-    id: i64,
-    rating: String,
+    // id: i64,
+    // rating: String,
     file_url: String,
-    width: i32,
-    height: i32,
-    file_size: i32,
-    file_type: String,
-    md5: String,
+    // width: i32,
+    // height: i32,
+    // file_size: i32,
+    // file_type: String,
+    // md5: String,
 }
 
 // https://beta.sankakucomplex.com/?tags=slave%20sweat%20welts

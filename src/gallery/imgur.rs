@@ -10,24 +10,24 @@ use super::{ResponseGalleryItem, UnpagedGallery};
 #[derive(Clone, Debug, Deserialize)]
 struct ResponseModel<T> {
     data: T,
-    success: bool,
-    status: i16,
+    // success: bool,
+    // status: i16,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct GalleryModel {
-    id: String,
-    title: String,
-    link: String,
+    // id: String,
+    // title: String,
+    // link: String,
     images: VecDeque<ImageModel>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ImageModel {
-    id: String,
-    width: u32,
-    height: u32,
-    size: u64,
+    // id: String,
+    // width: u32,
+    // height: u32,
+    // size: u64,
     link: String,
     mp4: Option<String>,
 }

@@ -99,17 +99,17 @@ pub struct Context {
 
 #[derive(Clone, Debug, Deserialize)]
 struct GalleryInfo {
-    id: u64,
+    // id: u64,
     media_id: String,
     images: Images,
-    #[serde(rename = "num_pages")]
-    pages: i32,
+    // #[serde(rename = "num_pages")]
+    // pages: i32,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct Images {
-    cover: ImageInfo,
-    thumbnail: ImageInfo,
+    // cover: ImageInfo,
+    // thumbnail: ImageInfo,
     pages: VecDeque<ImageInfo>,
 }
 

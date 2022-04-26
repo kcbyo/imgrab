@@ -6,7 +6,7 @@ use crate::{error::Error, Result};
 
 #[derive(Clone, Debug, Default)]
 pub struct Configuration {
-    text: String,
+    // text: String,
     config: HashMap<Key, String>,
 }
 
@@ -22,7 +22,9 @@ impl Configuration {
 
         text.map(|text| Configuration {
             config: read_config(&text),
-            text,
+            // I think this was originally used for debugging, but I have no 
+            // use for it right now
+            // text,
         })
         .unwrap_or_else(Default::default)
     }

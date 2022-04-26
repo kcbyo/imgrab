@@ -13,7 +13,7 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FlistImage>> {
     struct Template {
         #[serde(rename = "images")]
         profile: Vec<Image>,
-        error: String,
+        // error: String,
     }
 
     let context = Context::new();
