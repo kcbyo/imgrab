@@ -79,15 +79,13 @@ impl Opt {
             ..
         } = self;
 
-        let name_override = gallery_name
-            .filter(|_| self.auto_name)
-            .or_else(|| name_override.as_ref().map(AsRef::as_ref));
+        let directory = gallery_name.or(directory.as_deref());
 
         // It is an error for the user to request an auto name and for us to have no name to use.
-        if self.auto_name && name_override.is_none() {
+        if self.auto_name && directory.is_none() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "autoname unavailable; use name override",
+                "auto name not available; use name override",
             )
             .into());
         }
@@ -110,9 +108,6 @@ impl Opt {
             None => current_dir,
         };
 
-        Ok(StorageProvider::new(
-            path,
-            name_override.map(|name| name.to_string()),
-        ))
+        Ok(StorageProvider::new(path, name_override.clone()))
     }
 }
