@@ -1,6 +1,6 @@
 use std::{io, path::PathBuf};
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use crate::storage::StorageProvider;
 
@@ -8,17 +8,16 @@ use crate::storage::StorageProvider;
 ///
 /// It's best not to pass in your username and password. Instead, feel free to include that in
 /// a .env file when the program is compiled.
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Opt {
     /// The target url.
     url: String,
 
     /// A directory for new files.
-    // #[structopt(short = "d", long = "dir", parse(from_os_str))]
     directory: Option<String>,
 
     /// A base name to be used in naming downloaded files.
-    #[structopt(short = "n", long = "name")]
+    #[clap(short, long = "name")]
     name_override: Option<String>,
 
     /// Auto-derive name
@@ -29,29 +28,29 @@ pub struct Opt {
     ///
     /// In the event a name cannot be derived, the base name can be used as a fallback, or
     /// else the download will fail.
-    #[structopt(short, long = "auto")]
+    #[clap(short, long = "auto")]
     auto_name: bool,
 
     /// Add a cooldown between image downloads.
-    #[structopt(short = "w", long = "wait")]
+    #[clap(short, long)]
     wait: Option<u64>,
 
     /// Overwrite existing files.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     overwrite: bool,
 
     /// Skip n images.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub skip: Option<usize>,
 
     /// Take n images.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub take: Option<usize>,
 }
 
 impl Opt {
-    pub fn from_args() -> Self {
-        StructOpt::from_args()
+    pub fn parse() -> Self {
+        Parser::parse()
     }
 
     pub fn url(&self) -> &str {
