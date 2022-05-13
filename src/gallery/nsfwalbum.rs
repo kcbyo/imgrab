@@ -4,7 +4,7 @@ use super::prelude::*;
 
 // FIXME: This almost works, but it's actually downloading thumbnails instead of full-size images.
 
-pub fn extract(url: &str) -> crate::Result<UnpagedGallery<NsfwImageId>> {
+pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<NsfwImageId>, Option<String>)> {
     let client = Client::builder().user_agent(USER_AGENT).build().unwrap();
     let pattern = Regex::new(r#"data-img-id="(\d+)""#).unwrap();
     let content = client.get(url).send()?.text()?;
@@ -13,10 +13,13 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<NsfwImageId>> {
         .filter_map(|x| x.get(1).map(|x| x.as_str().to_owned()))
         .map(NsfwImageId);
 
-    Ok(UnpagedGallery {
-        context: Context::with_client(client),
-        items: images.collect(),
-    })
+    Ok((
+        UnpagedGallery {
+            context: Context::with_client(client),
+            items: images.collect(),
+        },
+        None,
+    ))
 }
 
 pub struct Context {

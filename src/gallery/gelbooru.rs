@@ -5,7 +5,7 @@ use crate::config::{Configuration, Key};
 
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<GelbooruPager>> {
+pub fn extract(url: &str) -> crate::Result<(PagedGallery<GelbooruPager>, Option<String>)> {
     let config = Configuration::init();
     let user_id = config.get_config(Key::GelbooruUser)?.into();
 
@@ -13,7 +13,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<GelbooruPager>> {
     // really not interested in the url itself. We pretty much only want the search tags.
     let tags = read_tags(url)?.into();
 
-    Ok(PagedGallery {
+    let gallery = PagedGallery {
         context: build_client(),
         pager: GelbooruPager {
             user_id,
@@ -22,7 +22,9 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<GelbooruPager>> {
             is_complete: false,
         },
         current: Page::Empty,
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct GelbooruPager {

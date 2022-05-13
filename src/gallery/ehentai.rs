@@ -7,7 +7,7 @@ use crate::config::{Configuration, Key};
 
 use super::{prelude::*, Gallery};
 
-pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
+pub fn extract(url: &str) -> crate::Result<(EHentaiGallery, Option<String>)> {
     // So, one ugly fact about the e-hentai implementation is that the only way to get
     // full-sized images from e-hentai is by logging in. I've already figured out (read:
     // implemented in another program) their authentication mechanism, so it's not that
@@ -31,7 +31,7 @@ pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
         .map(|s| EhentaiUrl(s.get(0).unwrap().as_str().into()))
         .collect();
 
-    Ok(EHentaiGallery {
+    let gallery = EHentaiGallery {
         context: Context::with_client(client),
         pager: EhentaiPager {
             base_url: url.into(),
@@ -40,7 +40,9 @@ pub fn extract(url: &str) -> crate::Result<EHentaiGallery> {
             total_count: gallery_size,
         },
         current: queue,
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct EhentaiPager {

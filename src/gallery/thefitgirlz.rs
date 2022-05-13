@@ -3,9 +3,9 @@ use regex::Regex;
 
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
+pub fn extract(url: &str) -> crate::Result<(PagedGallery<FgPager>, Option<String>)> {
     let model = extract_model_name(url)?;
-    Ok(PagedGallery {
+    let gallery = PagedGallery {
         context: Context {
             client: Client::builder().user_agent(USER_AGENT).build().unwrap(),
             image_meta_selector: Matcher::new("meta").unwrap(),
@@ -14,10 +14,12 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<FgPager>> {
         pager: FgPager {
             is_complete: false,
             offset: 0,
-            model,
+            model: model.clone(),
         },
         current: Page::Empty,
-    })
+    };
+
+    Ok((gallery, Some(model)))
 }
 
 fn extract_model_name(url: &str) -> Result<String, Error> {

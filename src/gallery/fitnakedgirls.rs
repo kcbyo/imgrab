@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FngUrl>> {
+pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<FngUrl>, Option<String>)> {
     use scraper::{Html, Selector};
 
     let client = Client::builder().user_agent(USER_AGENT).build().unwrap();
@@ -9,7 +9,7 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FngUrl>> {
     let item_selector = Selector::parse("div.album img,div.album source").unwrap();
     let document = Html::parse_document(&content);
 
-    Ok(UnpagedGallery {
+    let gallery = UnpagedGallery {
         context: client,
         items: document
             .select(&item_selector)
@@ -22,7 +22,9 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FngUrl>> {
             })
             .map(FngUrl)
             .collect(),
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct FngUrl(String);

@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::gallery::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FlistImage>> {
+pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<FlistImage>, Option<String>)> {
     // This ought to be basically the easiest implementation yet. My compliments to FList,
     // despite they're not exactly my favorite bunch of people to deal with.
 
@@ -34,7 +34,7 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<FlistImage>> {
     items.extend(profile.into_iter().map(FlistImage::Profile));
     items.extend(links.into_iter().map(FlistImage::Link));
 
-    Ok(UnpagedGallery { context, items })
+    Ok((UnpagedGallery { context, items }, None))
 }
 
 pub enum FlistImage {

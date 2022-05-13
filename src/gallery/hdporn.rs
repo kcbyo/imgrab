@@ -5,7 +5,7 @@
 
 use crate::gallery::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<UnpagedGallery<Image>> {
+pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<Image>, Option<String>)> {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .cookie_store(true)
@@ -19,10 +19,13 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<Image>> {
         .filter_map(|cx| cx.attr("href"))
         .map(|url| Image(url.into()));
 
-    Ok(UnpagedGallery {
-        context: client,
-        items: links.collect(),
-    })
+    Ok((
+        UnpagedGallery {
+            context: client,
+            items: links.collect(),
+        },
+        None,
+    ))
 }
 
 pub struct Image(String);

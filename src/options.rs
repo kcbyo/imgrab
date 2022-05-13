@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
 use structopt::StructOpt;
 
@@ -20,6 +20,17 @@ pub struct Opt {
     /// A base name to be used in naming downloaded files.
     #[structopt(short = "n", long = "name")]
     name_override: Option<String>,
+
+    /// Auto-derive name
+    ///
+    /// Instructs imgrab to automatically derive a gallery name from the gallery url when
+    /// possible. In general, this is possible for galleries by an artist or of a model;
+    /// galleries based on tag searches will generally not provide an auto-name.
+    ///
+    /// In the event a name cannot be derived, the base name can be used as a fallback, or
+    /// else the download will fail.
+    #[structopt(short, long = "auto")]
+    auto_name: bool,
 
     /// Add a cooldown between image downloads.
     #[structopt(short = "w", long = "wait")]
@@ -58,6 +69,7 @@ impl Opt {
     pub fn storage_provider(
         &self,
         current_dir: impl Into<PathBuf>,
+        gallery_name: Option<&str>,
     ) -> crate::Result<StorageProvider> {
         use std::fs;
 
@@ -66,6 +78,19 @@ impl Opt {
             name_override,
             ..
         } = self;
+
+        let name_override = gallery_name
+            .filter(|_| self.auto_name)
+            .or_else(|| name_override.as_ref().map(AsRef::as_ref));
+
+        // It is an error for the user to request an auto name and for us to have no name to use.
+        if self.auto_name && name_override.is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "autoname unavailable; use name override",
+            )
+            .into());
+        }
 
         let mut current_dir = current_dir.into();
 
@@ -85,6 +110,9 @@ impl Opt {
             None => current_dir,
         };
 
-        Ok(StorageProvider::new(path, name_override.clone()))
+        Ok(StorageProvider::new(
+            path,
+            name_override.map(|name| name.to_string()),
+        ))
     }
 }

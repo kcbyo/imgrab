@@ -3,7 +3,7 @@ use regex::Regex;
 
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<BmPager>> {
+pub fn extract(url: &str) -> crate::Result<(PagedGallery<BmPager>, Option<String>)> {
     let pattern = Regex::new(r"/pin/tag/([^/]+)/?|\?s=([^&]+)").unwrap();
     let captures = pattern.captures(url).ok_or_else(|| {
         Error::Unsupported(
@@ -23,6 +23,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<BmPager>> {
     // otherwise there's no real way to know when this pager needs to stop.
 
     let context = Context::new();
+    let name_from_query = query.name_from_query().map(|s| s.to_string());
     let mut pager = BmPager::new(query);
 
     let text = context.client.get(&pager.next_url()).send()?.text()?;
@@ -39,16 +40,29 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<BmPager>> {
         })?;
 
     pager.set_max_page(count);
-    Ok(PagedGallery {
+
+    let gallery = PagedGallery {
         current: context.read_thumbs(&text),
         context,
         pager,
-    })
+    };
+
+    Ok((gallery, name_from_query))
 }
 
 enum Query {
     Tag(String),
     Search(String),
+}
+
+impl Query {
+    fn name_from_query(&self) -> Option<&str> {
+        if let Query::Tag(tag) = &self {
+            Some(tag)
+        } else {
+            None
+        }
+    }
 }
 
 pub struct BmPager {

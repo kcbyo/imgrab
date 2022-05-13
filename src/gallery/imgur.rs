@@ -46,32 +46,41 @@ impl Downloadable for ImageModel {
     }
 }
 
-pub fn extract(url: &str) -> crate::Result<UnpagedGallery<ImageModel>> {
+pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<ImageModel>, Option<String>)> {
     let context = Context::try_with_config()?;
 
     if url.contains("imgur.com/a/") {
         let images = query_album(&context, url)?;
-        return Ok(UnpagedGallery {
-            context,
-            items: images,
-        });
+        return Ok((
+            UnpagedGallery {
+                context,
+                items: images,
+            },
+            None,
+        ));
     }
 
     if url.contains("imgur.com/gallery/") {
         let images = query_gallery(&context, url)?;
-        return Ok(UnpagedGallery {
-            context,
-            items: images,
-        });
+        return Ok((
+            UnpagedGallery {
+                context,
+                items: images,
+            },
+            None,
+        ));
     }
 
     let image = query_image(&context, url)?;
     let mut images = VecDeque::with_capacity(1);
     images.push_back(image);
-    Ok(UnpagedGallery {
-        context,
-        items: images,
-    })
+    Ok((
+        UnpagedGallery {
+            context,
+            items: images,
+        },
+        None,
+    ))
 }
 
 pub struct Context {

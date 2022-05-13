@@ -5,15 +5,17 @@ use scraper::{Html, Selector};
 
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<HfPager>> {
+pub fn extract(url: &str) -> crate::Result<(PagedGallery<HfPager>, Option<String>)> {
     let mut segments = url.split('/');
     let _ = segments.find(|&x| x == "user");
 
     if let Some(user) = segments.next() {
+        let gallery_name = user.to_owned();
         user_gallery(&format!(
             "https://www.hentai-foundry.com/pictures/user/{}",
             user
         ))
+        .map(|gallery| (gallery, Some(gallery_name)))
     } else {
         Err(Error::Unsupported(UnsupportedError::Route, url.into()))
     }

@@ -2,7 +2,7 @@ use regex::Regex;
 
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
+pub fn extract(url: &str) -> crate::Result<(PagedGallery<GwmPager>, Option<String>)> {
     use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
 
     let mut headers = HeaderMap::new();
@@ -18,7 +18,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
         data_url_pattern: Regex::new(r#"images/full/\d+\.[^"]+"#).unwrap(),
     };
 
-    Ok(PagedGallery {
+    let gallery = PagedGallery {
         context,
         current: Page::Empty,
         pager: GwmPager {
@@ -26,7 +26,9 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<GwmPager>> {
             page: 1,
             previous_items: VecDeque::new(),
         },
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct Context {

@@ -46,7 +46,7 @@ pub struct Image {
 
 // https://beta.sankakucomplex.com/?tags=slave%20sweat%20welts
 
-pub fn extract(url: &str) -> crate::Result<PagedGallery<SankakuPager>> {
+pub fn extract(url: &str) -> crate::Result<(PagedGallery<SankakuPager>, Option<String>)> {
     // I doubt we'll see hashes at the end of these urls, but who knows?
     let url = url.trim_end_matches('#');
     let tags = Tags::try_from_url(url, "%20").ok_or_else(|| {
@@ -74,7 +74,7 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<SankakuPager>> {
         .send()?
         .json()?;
 
-    Ok(PagedGallery {
+    let gallery = PagedGallery {
         context: Context {
             client,
             token: access_token,
@@ -85,7 +85,9 @@ pub fn extract(url: &str) -> crate::Result<PagedGallery<SankakuPager>> {
             has_started: false,
         },
         current: Page::Empty,
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct Context {

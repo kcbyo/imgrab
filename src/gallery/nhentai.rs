@@ -20,7 +20,7 @@ use serde::{Deserialize, Deserializer};
 
 use super::prelude::*;
 
-pub fn extract(url: &str) -> crate::Result<UnpagedGallery<ImageToken>> {
+pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<ImageToken>, Option<String>)> {
     let client = Client::builder().user_agent(USER_AGENT).build().unwrap();
 
     // The gallery page serves no real purpose for us, because each of the image pages
@@ -58,13 +58,15 @@ pub fn extract(url: &str) -> crate::Result<UnpagedGallery<ImageToken>> {
             fmt: info.format,
         });
 
-    Ok(UnpagedGallery {
+    let gallery = UnpagedGallery {
         context: Context {
             client,
             media_id: gallery_info.media_id,
         },
         items: tokens.collect(),
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct ImageToken {

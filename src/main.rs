@@ -1,10 +1,3 @@
-use std::{
-    collections::HashSet,
-    env,
-    fs::{self, File},
-    path::{Path, PathBuf},
-};
-
 mod config;
 mod error;
 mod format;
@@ -13,6 +6,13 @@ mod options;
 mod storage;
 mod tags;
 mod waiter;
+
+use std::{
+    collections::HashSet,
+    env,
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
 
 use error::{Error, UnsupportedError};
 use fmtsize::{Conventional, FmtSize};
@@ -61,11 +61,12 @@ fn run(opt: &Opt) -> crate::Result<()> {
 
 fn download<T: Gallery>(
     opt: &Opt,
-    extractor: impl Fn(&str) -> crate::Result<T>,
+    extractor: impl Fn(&str) -> crate::Result<(T, Option<String>)>,
 ) -> crate::Result<()> {
     let start_time = chrono::Local::now();
 
-    let mut gallery = extractor(opt.url())?;
+    let (mut gallery, gallery_name) = extractor(opt.url())?;
+
     if let Some(skip) = opt.skip {
         gallery.advance_by(skip)?;
     }
@@ -78,7 +79,8 @@ fn download<T: Gallery>(
         .map(waiter::Waiter::from_secs)
         .unwrap_or_default();
 
-    let mut storage = opt.storage_provider(&current_dir)?;
+    let mut storage =
+        opt.storage_provider(&current_dir, gallery_name.as_ref().map(AsRef::as_ref))?;
     let existing_files = read_existing_files(storage.path())?;
 
     let mut count = 0;

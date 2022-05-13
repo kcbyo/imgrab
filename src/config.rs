@@ -22,7 +22,7 @@ impl Configuration {
 
         text.map(|text| Configuration {
             config: read_config(&text),
-            // I think this was originally used for debugging, but I have no 
+            // I think this was originally used for debugging, but I have no
             // use for it right now
             // text,
         })

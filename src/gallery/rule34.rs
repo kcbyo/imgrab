@@ -3,15 +3,17 @@ use serde::Deserialize;
 
 use super::{prelude::*, Gallery};
 
-pub fn extract(url: &str) -> crate::Result<Rule34Gallery> {
+pub fn extract(url: &str) -> crate::Result<(Rule34Gallery, Option<String>)> {
     let search = extract_search(url)?;
     let pager = Rule34Pager { search, idx: 0 };
 
-    Ok(Rule34Gallery {
+    let gallery = Rule34Gallery {
         context: Context::new(),
         pager,
         current: Page::Empty,
-    })
+    };
+
+    Ok((gallery, None))
 }
 
 pub struct Context {
