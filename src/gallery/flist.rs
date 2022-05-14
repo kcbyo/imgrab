@@ -16,6 +16,28 @@ pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<FlistImage>, Option<S
         // error: String,
     }
 
+    // We want to grab the character name for later. To accomplish this, we're going to use a
+    // pair of regular expressions. Sue me. It's better to do this work here, where we have
+    // some context about what we're looking at, than to try to do it in a super-generic way
+    // later on in the program.
+
+    let name_expr = Regex::new(r#"/c/([^?]+)"#).unwrap();
+    let percent_encode_expr = Regex::new(r#"%\d+"#).unwrap();
+
+    let gallery_name = name_expr
+        .captures(url)
+        .and_then(|cx| cx.get(1).map(|m| m.as_str()));
+    let gallery_name = gallery_name.map(|name| {
+        percent_encode_expr.replace_all(name, |cx: &regex::Captures| {
+            cx.get(0)
+                .map(|m| match m.as_str() {
+                    "%20" => " ",
+                    _ => "",
+                })
+                .unwrap_or("")
+        })
+    });
+
     let context = Context::new();
     let page_content = context.client.get(url).send()?.text()?;
     let character_id = read_character_id(url, &page_content)?;
@@ -34,7 +56,10 @@ pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<FlistImage>, Option<S
     items.extend(profile.into_iter().map(FlistImage::Profile));
     items.extend(links.into_iter().map(FlistImage::Link));
 
-    Ok((UnpagedGallery { context, items }, None))
+    Ok((
+        UnpagedGallery { context, items },
+        gallery_name.map(|name| name.to_string()),
+    ))
 }
 
 pub enum FlistImage {

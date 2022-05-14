@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf};
+use std::{borrow::Cow, io, path::PathBuf};
 
 use clap::Parser;
 
@@ -78,7 +78,9 @@ impl Opt {
             ..
         } = self;
 
-        let directory = gallery_name.or(directory.as_deref());
+        let directory = gallery_name
+            .map(make_safe_name)
+            .or_else(|| directory.as_deref().map(Cow::from));
 
         // It is an error for the user to request an auto name and for us to have no name to use.
         if self.auto_name && directory.is_none() {
@@ -95,10 +97,10 @@ impl Opt {
         // an existing path, roll with it. Otherwise, use the current directory with their
         // provided string appended to the end.
         let path = match directory {
-            Some(path) => match fs::canonicalize(&path) {
+            Some(path) => match fs::canonicalize(&*path) {
                 Ok(path) => path,
                 _ => {
-                    current_dir.push(path);
+                    current_dir.push(&*path);
                     fs::create_dir(&current_dir)?;
                     current_dir
                 }
@@ -109,4 +111,57 @@ impl Opt {
 
         Ok(StorageProvider::new(path, name_override.clone()))
     }
+}
+
+fn make_safe_name(name: &str) -> Cow<str> {
+    for (idx, u) in name.bytes().enumerate() {
+        if is_illegal_char(u) {
+            return Cow::from(build_filtered_string(
+                &name[..idx],
+                &name[idx + 1..],
+                u == b'%',
+            ));
+        }
+    }
+    Cow::from(name)
+}
+
+fn build_filtered_string(head: &str, tail: &str, mut skip_numerals: bool) -> String {
+    let mut has_invalid_char = false;
+    let mut buf = String::with_capacity(head.len() + tail.len() + 1);
+
+    buf.push_str(head);
+    buf.push('_');
+
+    for u in tail.bytes() {
+        if is_illegal_char(u) {
+            if u == b'%' {
+                skip_numerals = true;
+            }
+
+            if !has_invalid_char {
+                has_invalid_char = true;
+                buf.push('_');
+            }
+        } else {
+            if skip_numerals && matches!(u, b'0'..=b'9') {
+                continue;
+            }
+
+            buf.push(u as char);
+            if has_invalid_char {
+                has_invalid_char = false;
+            }
+
+            if skip_numerals {
+                skip_numerals = false;
+            }
+        }
+    }
+
+    buf
+}
+
+fn is_illegal_char(u: u8) -> bool {
+    !u.is_ascii() || !matches!(u, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b' ')
 }

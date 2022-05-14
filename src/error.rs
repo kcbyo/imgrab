@@ -41,7 +41,7 @@ impl Display for Error {
                 }
                 ExtractionFailure::ImageUrl => write!(f, "Unable to extract image url at {}", url),
             },
-            Error::Io(_) => f.write_str("IO error"),
+            Error::Io(e) => e.fmt(f),
             Error::Network(e) => e.fmt(f),
             Error::Unsupported(UnsupportedError::Domain, url) => {
                 write!(f, "Unsupported domain: {}", url)
