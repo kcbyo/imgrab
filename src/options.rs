@@ -78,9 +78,13 @@ impl Opt {
             ..
         } = self;
 
-        let directory = gallery_name
-            .map(make_safe_name)
-            .or_else(|| directory.as_deref().map(Cow::from));
+        let directory = if self.auto_name {
+            gallery_name
+                .map(make_safe_name)
+                .or_else(|| directory.as_deref().map(Cow::from))
+        } else {
+            directory.as_deref().map(Cow::from)
+        };
 
         // It is an error for the user to request an auto name and for us to have no name to use.
         if self.auto_name && directory.is_none() {
