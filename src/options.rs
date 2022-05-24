@@ -9,6 +9,7 @@ use crate::storage::StorageProvider;
 /// It's best not to pass in your username and password. Instead, feel free to include that in
 /// a .env file when the program is compiled.
 #[derive(Clone, Debug, Parser)]
+#[clap(version)]
 pub struct Opt {
     /// The target url.
     url: String,

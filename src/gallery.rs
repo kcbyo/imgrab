@@ -78,7 +78,12 @@ impl<T> Page<T> {
 
 impl<A> FromIterator<A> for Page<A> {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
-        Page::Items(iter.into_iter().collect())
+        let items: VecDeque<_> = iter.into_iter().collect();
+        if items.is_empty() {
+            Page::Empty
+        } else {
+            Page::Items(items)
+        }
     }
 }
 
@@ -196,6 +201,25 @@ pub struct PagedGallery<T: Pager> {
     current: Page<T::Item>,
 }
 
+impl<T: Pager> PagedGallery<T> {
+    fn default_advance_by(&mut self, mut skipped: usize, mut skip_remaining: usize) -> crate::Result<usize> {
+        loop {
+            if self.current.is_empty() {
+                self.current = self.pager.next_page(&self.context)?;
+            }
+
+            if self.current.len() > skip_remaining {
+                let _ = self.current.drain(skip_remaining);
+                return Ok(skipped + skip_remaining);
+            } else {
+                skipped += self.current.len();
+                skip_remaining -= self.current.len();
+                self.current.clear();
+            }
+        }
+    }
+}
+
 impl<T> Gallery for PagedGallery<T>
 where
     T: Pager,
@@ -216,23 +240,9 @@ where
     }
 
     fn advance_by(&mut self, n: usize) -> crate::Result<usize> {
-        let mut skipped = 0;
-        let mut skip_remaining = n;
-
-        loop {
-            if self.current.is_empty() {
-                self.current = self.pager.next_page(&self.context)?;
-            }
-
-            if self.current.len() > skip_remaining {
-                let _ = self.current.drain(skip_remaining);
-                return Ok(skipped + skip_remaining);
-            } else {
-                skipped += self.current.len();
-                skip_remaining -= self.current.len();
-                self.current.clear();
-            }
-        }
+        let skipped = 0;
+        let skip_remaining = n;
+        self.default_advance_by(skipped, skip_remaining)
     }
 }
 
