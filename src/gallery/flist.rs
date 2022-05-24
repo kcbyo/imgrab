@@ -168,13 +168,3 @@ fn read_links(content: &str) -> Option<Vec<String>> {
             .collect(),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn inline_extractor_works() {
-        let content = include_str!("../../resource/flist/gallery-page.html");
-        let inline = super::read_inlines(content).unwrap();
-        assert_eq!(1, inline.len());
-    }
-}

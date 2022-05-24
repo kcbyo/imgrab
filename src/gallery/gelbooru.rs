@@ -12,7 +12,6 @@ pub fn extract(url: &str) -> crate::Result<(PagedGallery<GelbooruPager>, Option<
     // The user-supplied URL will presumably be copied from the web interface, but we are
     // really not interested in the url itself. We pretty much only want the search tags.
     let tags = read_tags(url)?.into();
-
     let gallery = PagedGallery {
         context: super::build_client(),
         pager: GelbooruPager {
@@ -24,7 +23,10 @@ pub fn extract(url: &str) -> crate::Result<(PagedGallery<GelbooruPager>, Option<
         current: Page::Empty,
     };
 
-    Ok((gallery, None))
+    match get_single_tag(&gallery.pager.tags).map(|tag| tag.to_owned()) {
+        Some(tag) => Ok((gallery, Some(tag))),
+        None => Ok((gallery, None)),
+    }
 }
 
 pub struct GelbooruPager {
@@ -121,6 +123,12 @@ fn read_tags(url: &str) -> crate::Result<&str> {
         .get(1)
         .unwrap()
         .as_str())
+}
+
+fn get_single_tag(tags: &str) -> Option<&str> {
+    let mut tags = tags.split('+');
+    let single = tags.next();
+    single.filter(|_| tags.next().is_none())
 }
 
 #[cfg(test)]
