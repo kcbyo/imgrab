@@ -14,7 +14,7 @@ pub fn extract(url: &str) -> crate::Result<(PagedGallery<GelbooruPager>, Option<
     let tags = read_tags(url)?.into();
 
     let gallery = PagedGallery {
-        context: build_client(),
+        context: super::build_client(),
         pager: GelbooruPager {
             user_id,
             tags,
@@ -111,18 +111,6 @@ impl Downloadable for Image {
             .send()
             .map(ResponseGalleryItem::new)?)
     }
-}
-
-fn build_client() -> Client {
-    use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
-
-    let mut headers = HeaderMap::new();
-    headers.insert(ACCEPT, HeaderValue::from_static("text/html"));
-    Client::builder()
-        .user_agent(USER_AGENT)
-        .default_headers(headers)
-        .build()
-        .unwrap()
 }
 
 fn read_tags(url: &str) -> crate::Result<&str> {

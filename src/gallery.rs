@@ -1,10 +1,3 @@
-use std::{
-    borrow::Cow,
-    collections::VecDeque,
-    io::{self, Write},
-    iter::FromIterator,
-};
-
 pub mod beautymuscle;
 pub mod ehentai;
 pub mod fitnakedgirls;
@@ -17,12 +10,32 @@ pub mod imgur;
 pub mod nhentai;
 pub mod nsfwalbum;
 pub mod rule34;
+pub mod rule34_us;
 pub mod sankakubeta;
 pub mod thefitgirlz;
+
+use std::{
+    borrow::Cow,
+    collections::VecDeque,
+    io::{self, Write},
+    iter::FromIterator,
+};
 
 use reqwest::blocking::Response;
 
 use crate::storage::NameContext;
+
+pub(crate) fn build_client() -> prelude::Client {
+    use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
+
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT, HeaderValue::from_static("text/html"));
+    prelude::Client::builder()
+        .user_agent(prelude::USER_AGENT)
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
 
 #[derive(Clone, Debug)]
 pub enum Page<T> {
