@@ -202,7 +202,11 @@ pub struct PagedGallery<T: Pager> {
 }
 
 impl<T: Pager> PagedGallery<T> {
-    fn default_advance_by(&mut self, mut skipped: usize, mut skip_remaining: usize) -> crate::Result<usize> {
+    fn default_advance_by(
+        &mut self,
+        mut skipped: usize,
+        mut skip_remaining: usize,
+    ) -> crate::Result<usize> {
         loop {
             if self.current.is_empty() {
                 self.current = self.pager.next_page(&self.context)?;

@@ -13,7 +13,10 @@ pub fn extract(url: &str) -> crate::Result<(Rule34Gallery, Option<String>)> {
         current: Page::Empty,
     };
 
-    Ok((gallery, None))
+    match get_single_tag(&gallery.pager.search).map(|tag| tag.to_owned()) {
+        Some(tag) => Ok((gallery, Some(tag))),
+        None => Ok((gallery, None)),
+    }
 }
 
 pub struct Context {
@@ -233,4 +236,9 @@ fn build_client() -> Client {
         .cookie_provider(Arc::new(jar))
         .build()
         .unwrap()
+}
+
+fn get_single_tag(tags: &str) -> Option<&str> {
+    let mut tags = tags.trim_matches('+').split('+');
+    tags.next().filter(|_| tags.next().is_none())
 }
