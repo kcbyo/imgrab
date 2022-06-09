@@ -97,6 +97,15 @@ fn download<T: Gallery>(
                 let path = storage.create_path(item.context());
                 if !overwrite && existing_files.contains(&path) {
                     if let Ok(file_path) = shorten_path(&canonical_base_dir, &path) {
+
+                        // We have just found an existing file. If we've been asked to stop
+                        // downloading after finding an existing file, we won't bother printing
+                        // the name of the file.
+
+                        if opt.take_new {
+                            break;
+                        }
+
                         println!(
                             "{} {} has already been downloaded",
                             idx + 1,

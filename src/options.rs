@@ -47,6 +47,13 @@ pub struct Opt {
     /// Take n images.
     #[clap(short, long)]
     pub take: Option<usize>,
+
+    /// Take new images
+    /// 
+    /// This option causes imgrab to stop once it finds the first existing file. For some sites,
+    /// this is a reliable way of getting new images, and for others it may not be.
+    #[clap(short = 'T', long = "take-new")]
+    pub take_new: bool,
 }
 
 impl Opt {
