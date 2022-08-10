@@ -4,6 +4,13 @@ use clap::Parser;
 
 use crate::storage::StorageProvider;
 
+#[derive(Clone, Copy, Debug, Default)]
+pub enum WaitOption {
+    #[default]
+    Default,
+    Specified(f64),
+}
+
 /// A program for downloading image galleries.
 ///
 /// It's best not to pass in your username and password. Instead, feel free to include that in
@@ -34,7 +41,7 @@ pub struct Opt {
 
     /// Add a cooldown between image downloads.
     #[clap(short, long)]
-    wait: Option<u64>,
+    wait: Option<Option<f64>>,
 
     /// Overwrite existing files.
     #[clap(short, long)]
@@ -49,7 +56,7 @@ pub struct Opt {
     pub take: Option<usize>,
 
     /// Take new images
-    /// 
+    ///
     /// This option causes imgrab to stop once it finds the first existing file. For some sites,
     /// this is a reliable way of getting new images, and for others it may not be.
     #[clap(short = 'T', long = "take-new")]
@@ -65,8 +72,9 @@ impl Opt {
         &self.url
     }
 
-    pub fn wait(&self) -> Option<u64> {
+    pub fn wait(&self) -> Option<WaitOption> {
         self.wait
+            .map(|wait| wait.map(WaitOption::Specified).unwrap_or_default())
     }
 
     pub fn overwrite(&self) -> bool {

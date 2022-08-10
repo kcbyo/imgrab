@@ -1,5 +1,7 @@
 use std::{cell::Cell, thread, time::Duration};
 
+use crate::options::WaitOption;
+
 #[derive(Default)]
 pub struct Waiter {
     is_active: Cell<bool>,
@@ -7,10 +9,15 @@ pub struct Waiter {
 }
 
 impl Waiter {
-    pub fn from_secs(t: u64) -> Self {
+    pub fn from_option(option: WaitOption) -> Self {
+        let milliseconds = match option {
+            WaitOption::Default => 1000,
+            WaitOption::Specified(specified) => (1000.0 * specified) as u64,
+        };
+
         Self {
             is_active: Cell::new(false),
-            time: Some(Duration::from_secs(t)),
+            time: Some(Duration::from_millis(milliseconds)),
         }
     }
 
@@ -21,18 +28,5 @@ impl Waiter {
             }
         }
         self.is_active.set(true);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Waiter;
-
-    #[test]
-    fn wait() {
-        let waiter = Waiter::from_secs(5);
-        waiter.wait();
-        let Waiter { is_active, .. } = waiter;
-        assert!(is_active.into_inner());
     }
 }

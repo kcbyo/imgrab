@@ -563,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "imgrab"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "chrono",
  "clap",

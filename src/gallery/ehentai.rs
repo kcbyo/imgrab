@@ -192,7 +192,7 @@ impl Gallery for EHentaiGallery {
             }
 
             if self.current.len() > skip_remaining {
-                let _ = self.current.drain(skip_remaining);
+                self.current.drain(skip_remaining);
                 return Ok(skipped + skip_remaining);
             } else {
                 skipped += self.current.len();

@@ -77,7 +77,7 @@ fn download<T: Gallery>(
     let overwrite = opt.overwrite();
     let waiter = opt
         .wait()
-        .map(waiter::Waiter::from_secs)
+        .map(waiter::Waiter::from_option)
         .unwrap_or_default();
 
     let mut storage =
@@ -97,7 +97,6 @@ fn download<T: Gallery>(
                 let path = storage.create_path(item.context());
                 if !overwrite && existing_files.contains(&path) {
                     if let Ok(file_path) = shorten_path(&canonical_base_dir, &path) {
-
                         // We have just found an existing file. If we've been asked to stop
                         // downloading after finding an existing file, we won't bother printing
                         // the name of the file.
