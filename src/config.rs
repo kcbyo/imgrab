@@ -39,6 +39,8 @@ impl Configuration {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Key {
+    BleachUser,
+    BleachPass,
     EHentaiPass,
     EHentaiUser,
     GelbooruUser,
@@ -50,6 +52,8 @@ pub enum Key {
 impl Key {
     fn from_identifier(identifier: &str) -> Option<Self> {
         match identifier {
+            "bleach_username" => Some(Key::BleachUser),
+            "bleach_password" => Some(Key::BleachPass),
             "ehentai_password" => Some(Key::EHentaiPass),
             "ehentai_username" => Some(Key::EHentaiUser),
             "gelbooru_user" => Some(Key::GelbooruUser),

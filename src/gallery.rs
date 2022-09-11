@@ -1,4 +1,5 @@
 pub mod beautymuscle;
+pub mod bleachbooru;
 pub mod ehentai;
 pub mod fitnakedgirls;
 pub mod flist;
