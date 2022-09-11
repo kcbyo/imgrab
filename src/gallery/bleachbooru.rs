@@ -49,7 +49,7 @@ pub fn extract(url: &str) -> crate::Result<(PagedGallery<BleachbooruPager>, Opti
         pager: BleachbooruPager {
             auth,
             tags: read_tags(url)?.into(),
-            page: 0,
+            page: 1,
             is_complete: false,
         },
         current: Page::Empty,
