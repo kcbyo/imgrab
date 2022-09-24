@@ -39,6 +39,8 @@ impl Configuration {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Key {
+    AtfBooruApi,
+    AtfBooruUser,
     BleachUser,
     BleachPass,
     EHentaiPass,
@@ -52,6 +54,8 @@ pub enum Key {
 impl Key {
     fn from_identifier(identifier: &str) -> Option<Self> {
         match identifier {
+            "atfb_api" => Some(Key::AtfBooruApi),
+            "atfb_user" => Some(Key::AtfBooruUser),
             "bleach_username" => Some(Key::BleachUser),
             "bleach_password" => Some(Key::BleachPass),
             "ehentai_password" => Some(Key::EHentaiPass),

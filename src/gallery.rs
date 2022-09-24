@@ -1,3 +1,4 @@
+pub mod atfbooru;
 pub mod beautymuscle;
 pub mod bleachbooru;
 pub mod ehentai;

@@ -65,7 +65,7 @@ fn apply_salt_and_hash(password: &str) -> String {
     static HEAD: &str = "choujin-steiner--";
     static TAIL: &str = "--";
 
-    let mut m  = sha1_smol::Sha1::new();
+    let mut m = sha1_smol::Sha1::new();
     m.update(HEAD.as_bytes());
     m.update(password.as_bytes());
     m.update(TAIL.as_bytes());
@@ -128,10 +128,7 @@ impl Downloadable for Image {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         let url = format!("{IMAGE_BASE_URL}{}", self.file_url);
-        Ok(context
-            .get(&url)
-            .send()
-            .map(ResponseGalleryItem::new)?)
+        Ok(context.get(&url).send().map(ResponseGalleryItem::new)?)
     }
 }
 

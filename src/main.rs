@@ -42,6 +42,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
     match domain {
         "beta.sankakucomplex.com" => download(opt, sankakubeta::extract),
         "bleachbooru.org" => download(opt, bleachbooru::extract),
+        "booru.allthefallen.moe" => download(opt, atfbooru::extract),
         "e-hentai.org" => download(opt, ehentai::extract),
         "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
         "gelbooru.com" => download(opt, gelbooru::extract),
