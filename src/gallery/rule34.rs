@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+
 use regex::Regex;
+use scraper::{Html, Selector};
 use serde::Deserialize;
 
 use super::{prelude::*, Gallery};
@@ -23,6 +26,8 @@ pub struct Context {
     client: Client,
     gallery_page_pattern: Regex,
     image_metadata_pattern: Regex,
+    video_container_pattern: Regex,
+    video_selector: Selector,
 }
 
 impl Context {
@@ -31,6 +36,9 @@ impl Context {
             client: build_client(),
             gallery_page_pattern: Regex::new(r#"index\.php\?page=post&s=view&id=(\d+)"#).unwrap(),
             image_metadata_pattern: Regex::new(r#"image = (\{.+\})"#).unwrap(),
+
+            video_container_pattern: Regex::new("gelcomVideoContainer").unwrap(),
+            video_selector: Selector::parse("div#gelcomVideoContainer > video > source").unwrap(),
         }
     }
 
@@ -43,6 +51,13 @@ impl Context {
     }
 
     fn get_image_metadata(&self, text: &str) -> crate::Result<ImageMetadata> {
+        // Rule34 presents both images and video. Video is treated similarly to images, but with
+        // the addition of a "gelcomVideoPlayer" element. The resource url presented in the usual
+        // image payload, probably as the result of a bug, is not the correct url for the video,
+        // which is given in the video player element. To unfuck this...
+
+        // Fuck it.
+
         let packet = self
             .image_metadata_pattern
             .captures(text)
@@ -55,8 +70,26 @@ impl Context {
                 )
             })?;
 
-        serde_json::from_str(&packet)
-            .map_err(|e| Error::Extraction(ExtractionFailure::Metadata, e.to_string()))
+        let mut metadata: ImageMetadata = serde_json::from_str(&packet)
+            .map_err(|e| Error::Extraction(ExtractionFailure::Metadata, e.to_string()))?;
+
+        if self.video_container_pattern.is_match(text) {
+            let document = Html::parse_document(text);
+            let container_src = document
+                .select(&self.video_selector)
+                .next()
+                .and_then(|cx| cx.value().attr("src"))
+                .ok_or_else(|| {
+                    Error::Extraction(
+                        ExtractionFailure::ImageUrl,
+                        String::from("unable to extract video metadata"),
+                    )
+                })?;
+
+            metadata.video_url = Some(container_src.into());
+        }
+
+        Ok(metadata)
     }
 }
 
@@ -88,7 +121,7 @@ impl Downloadable for ImageId {
 
         Ok(context
             .client
-            .get(&url)
+            .get(&*url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }
@@ -103,11 +136,19 @@ pub struct ImageMetadata {
     dir: i32,
     img: String,
     base_dir: String,
+
+    #[serde(skip_deserializing)]
+    video_url: Option<String>,
 }
 
 impl ImageMetadata {
-    fn url(&self) -> String {
-        format!("{}{}/{}/{}", self.domain, self.base_dir, self.dir, self.img)
+    fn url(&self) -> Cow<str> {
+        self.video_url
+            .as_deref()
+            .map(|s| s.into())
+            .unwrap_or_else(|| {
+                format!("{}{}/{}/{}", self.domain, self.base_dir, self.dir, self.img).into()
+            })
     }
 }
 
