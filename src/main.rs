@@ -52,6 +52,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         "rule34.us" => download(opt, rule34_us::extract),
         "rule34.xxx" => download(opt, rule34::extract),
+        "scrolller.com" => download(opt, scrolller::extract),
         "thefitgirlz.com" => download(opt, thefitgirlz::extract),
         "www.beautymuscle.net" => download(opt, beautymuscle::extract),
         "www.f-list.net" => download(opt, flist::extract),

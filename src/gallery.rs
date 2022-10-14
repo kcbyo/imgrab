@@ -14,6 +14,7 @@ pub mod nsfwalbum;
 pub mod rule34;
 pub mod rule34_us;
 pub mod sankakubeta;
+pub mod scrolller;
 pub mod thefitgirlz;
 
 use std::{
