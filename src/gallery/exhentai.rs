@@ -160,7 +160,7 @@ impl Context {
     fn with_client(client: Client) -> Self {
         Self {
             client,
-            page_url_pattern: Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap(),
+            page_url_pattern: Regex::new(r#"https://exhentai.org/s/[^"]+"#).unwrap(),
             thumbnail_pattern: Regex::new(r#"id="img" src="([^"]+)"#).unwrap(),
             full_size_pattern: Regex::new(r#"<a href="([^"]+)">Download original"#).unwrap(),
         }
