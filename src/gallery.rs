@@ -2,6 +2,7 @@ pub mod atfbooru;
 pub mod beautymuscle;
 pub mod bleachbooru;
 pub mod ehentai;
+pub mod exhentai;
 pub mod fitnakedgirls;
 pub mod flist;
 pub mod gelbooru;

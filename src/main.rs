@@ -44,6 +44,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         "bleachbooru.org" => download(opt, bleachbooru::extract),
         "booru.allthefallen.moe" => download(opt, atfbooru::extract),
         "e-hentai.org" => download(opt, ehentai::extract),
+        "exhentai.org" => download(opt, exhentai::extract),
         "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
         "gelbooru.com" => download(opt, gelbooru::extract),
         "hdporn.pics" => download(opt, hdporn::extract),

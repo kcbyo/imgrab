@@ -7,21 +7,22 @@ use crate::config::{Configuration, Key};
 
 use super::{prelude::*, Gallery};
 
-pub fn extract(url: &str) -> crate::Result<(EHentaiGallery, Option<String>)> {
-    // First thing first: we have to log in to get full-size images.
+pub fn extract(url: &str) -> crate::Result<(ExHentaiGallery, Option<String>)> {
+    // So, this code is literally copied from the e-hentai implementation. This is because my
+    // THEORY is that exhentai is an alternative front end for e-hentai where expunged galleries
+    // are still accessible. I even found a blog post about how to log into exhentai you actually
+    // have to make an e-hentai account and log in there instead. I guess we'll take this as...
+    // some kind of gift, basically.
+
+    // First thing is still to log in.
 
     let config = Configuration::init();
     let username = config.get_config(Key::EHentaiUser)?;
     let password = config.get_config(Key::EHentaiPass)?;
     let client = configure_client(username, password)?;
 
-    // Next, hit the API for gallery metadata. This metadata is almost completely useless, but it
-    // gives us the page count without a lot of rigamarole.
-
-    // This API request consists of a "method" (which never changes, because we only know of one)
-    // and a list of gallery identifiers. The identifiers are stored in a heterogenous array,
-    // because apparently 2020 ruined everything. Currently, I'm trying to get serde to serialize
-    // a tuple as a heterogenous array.
+    // Next, hit the api for gallery metadata. *We are still going to hit the e-hentai api,*
+    // because exhentai doesn't have one and I assume that the e-hentai api will still work.
 
     static API_URL: &str = "https://api.e-hentai.org/api.php";
 
@@ -86,15 +87,15 @@ pub fn extract(url: &str) -> crate::Result<(EHentaiGallery, Option<String>)> {
         .map_err(|_| Error::Extraction(ExtractionFailure::Metadata, url.into()))?;
 
     let page_content = client.get(url).send()?.text()?;
-    let image_page_pattern = Regex::new(r#"https://e-hentai.org/s/[^"]+"#).unwrap();
+    let image_page_pattern = Regex::new(r#"https://exhentai.org/s/[^"]+"#).unwrap();
     let queue: Page<_> = image_page_pattern
         .captures_iter(&page_content)
-        .map(|s| EhentaiUrl(s.get(0).unwrap().as_str().into()))
+        .map(|s| ExHentaiUrl(s.get(0).unwrap().as_str().into()))
         .collect();
 
-    let gallery = EHentaiGallery {
+    let gallery = ExHentaiGallery {
         context: Context::with_client(client),
-        pager: EhentaiPager {
+        pager: ExHentaiPager {
             base_url: url.into(),
             page: 1,
             paged_count: queue.len(),
@@ -106,7 +107,7 @@ pub fn extract(url: &str) -> crate::Result<(EHentaiGallery, Option<String>)> {
     Ok((gallery, meta.auto_name()))
 }
 
-pub struct EhentaiPager {
+pub struct ExHentaiPager {
     base_url: String,
     page: usize,
 
@@ -115,10 +116,10 @@ pub struct EhentaiPager {
     total_count: usize,
 }
 
-impl Pager for EhentaiPager {
+impl Pager for ExHentaiPager {
     type Context = Context;
 
-    type Item = EhentaiUrl;
+    type Item = ExHentaiUrl;
 
     fn next_page(&mut self, context: &Self::Context) -> crate::Result<Page<Self::Item>> {
         // E-hentai has some peculiarities re: its gallery design that make the way we do things
@@ -141,7 +142,7 @@ impl Pager for EhentaiPager {
         let page: Page<_> = context
             .page_url_pattern
             .find_iter(&text)
-            .map(|x| EhentaiUrl(x.as_str().into()))
+            .map(|x| ExHentaiUrl(x.as_str().into()))
             .collect();
         self.paged_count += page.len();
         Ok(page)
@@ -188,9 +189,9 @@ impl Context {
 }
 
 #[derive(Clone, Debug)]
-pub struct EhentaiUrl(String);
+pub struct ExHentaiUrl(String);
 
-impl Downloadable for EhentaiUrl {
+impl Downloadable for ExHentaiUrl {
     type Context = Context;
 
     type Output = ResponseGalleryItem;
@@ -207,13 +208,13 @@ impl Downloadable for EhentaiUrl {
 
 // This specialized gallery impl exists to improve efficiency
 // in skipping back pages for ehentai.
-pub struct EHentaiGallery {
+pub struct ExHentaiGallery {
     context: Context,
-    pager: EhentaiPager,
-    current: Page<EhentaiUrl>,
+    pager: ExHentaiPager,
+    current: Page<ExHentaiUrl>,
 }
 
-impl Gallery for EHentaiGallery {
+impl Gallery for ExHentaiGallery {
     type Item = ResponseGalleryItem;
 
     fn next(&mut self) -> Option<crate::Result<Self::Item>> {

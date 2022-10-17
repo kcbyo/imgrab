@@ -133,43 +133,29 @@ mod data {
                     self.idx += 1;
 
                     match self.idx {
-                        1 => {
-                            if let Some(url) = self
-                                .source
-                                .data
-                                .get_subreddit_post
-                                .full_length_source
-                                .as_deref()
-                            {
-                                return Some(url.into());
-                            } else {
-                                return self.next();
-                            }
-                        }
+                        1 => self
+                            .source
+                            .data
+                            .get_subreddit_post
+                            .full_length_source
+                            .as_deref()
+                            .map(|s| s.into()),
 
-                        2 => {
-                            if let Some(url) =
-                                self.source.data.get_subreddit_post.gfycat_source.as_deref()
-                            {
-                                return Some(url.into());
-                            } else {
-                                return self.next();
-                            }
-                        }
+                        2 => self
+                            .source
+                            .data
+                            .get_subreddit_post
+                            .gfycat_source
+                            .as_deref()
+                            .map(|s| s.into()),
 
-                        3 => {
-                            if let Some(url) = self
-                                .source
-                                .data
-                                .get_subreddit_post
-                                .redgifs_source
-                                .as_deref()
-                            {
-                                return Some(url.into());
-                            } else {
-                                return None;
-                            }
-                        }
+                        3 => self
+                            .source
+                            .data
+                            .get_subreddit_post
+                            .redgifs_source
+                            .as_deref()
+                            .map(|s| s.into()),
 
                         _ => unreachable!("We have an early return for this."),
                     }
