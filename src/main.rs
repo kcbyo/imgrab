@@ -46,6 +46,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         "e-hentai.org" => download(opt, ehentai::extract),
         "exhentai.org" => download(opt, exhentai::extract),
         "fitnakedgirls.com" => download(opt, fitnakedgirls::extract),
+        "fucks.pics" => download(opt, fucks_pics::extract),
         "gelbooru.com" => download(opt, gelbooru::extract),
         "hdporn.pics" => download(opt, hdporn::extract),
         "imgur.com" => download(opt, imgur::extract),

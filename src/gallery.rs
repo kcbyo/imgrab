@@ -5,6 +5,7 @@ pub mod ehentai;
 pub mod exhentai;
 pub mod fitnakedgirls;
 pub mod flist;
+pub mod fucks_pics;
 pub mod gelbooru;
 pub mod girlswithmuscle;
 pub mod hdporn;
