@@ -187,5 +187,6 @@ fn build_filtered_string(head: &str, tail: &str, mut skip_numerals: bool) -> Str
 }
 
 fn is_illegal_char(u: u8) -> bool {
-    !u.is_ascii() || !matches!(u, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b' ' | b'-')
+    !u.is_ascii()
+        || !matches!(u, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b' ' | b'-' | b'(' | b')')
 }
