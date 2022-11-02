@@ -134,6 +134,9 @@ impl Opt {
 }
 
 fn make_safe_name(name: &str) -> Cow<str> {
+    // Replace opening and closing parens
+    let name = name.replace("%28", "(").replace("%29", ")");
+
     for (idx, u) in name.bytes().enumerate() {
         if is_illegal_char(u) {
             return Cow::from(build_filtered_string(
@@ -143,6 +146,7 @@ fn make_safe_name(name: &str) -> Cow<str> {
             ));
         }
     }
+
     Cow::from(name)
 }
 

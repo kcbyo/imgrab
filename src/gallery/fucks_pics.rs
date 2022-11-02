@@ -31,10 +31,13 @@ pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<Image>, Option<String
                 .map(|cx| cx.as_str().to_string())
         });
 
-    Ok((UnpagedGallery {
-        context: client,
-        items: image_urls.map(Image).collect(),
-    }, get_gallery_name(&document)))
+    Ok((
+        UnpagedGallery {
+            context: client,
+            items: image_urls.map(Image).collect(),
+        },
+        get_gallery_name(&document),
+    ))
 }
 
 fn get_gallery_base_url(url: &str) -> Option<&str> {
@@ -45,7 +48,10 @@ fn get_gallery_base_url(url: &str) -> Option<&str> {
 
 fn get_gallery_name(document: &Html) -> Option<String> {
     let selector = Selector::parse("h3").unwrap();
-    document.select(&selector).next().map(|element| element.inner_html().to_string())
+    document
+        .select(&selector)
+        .next()
+        .map(|element| element.inner_html().to_string())
 }
 
 pub struct Image(String);
