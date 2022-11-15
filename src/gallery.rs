@@ -1,8 +1,10 @@
 pub mod atfbooru;
 pub mod beautymuscle;
+pub mod bitchesgirls;
 pub mod bleachbooru;
 pub mod ehentai;
 pub mod exhentai;
+pub mod fappeningbook;
 pub mod fitnakedgirls;
 pub mod flist;
 pub mod fucks_pics;
