@@ -126,7 +126,7 @@ impl Pager for SankakuPager {
 
         let PageResponse { meta, data } = context
             .client
-            .get(&url)
+            .get(url)
             .bearer_auth(&context.token)
             .send()?
             .json()?;
@@ -143,7 +143,7 @@ impl Downloadable for Image {
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         Ok(context
             .client
-            .get(&self.file_url)
+            .get(self.file_url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

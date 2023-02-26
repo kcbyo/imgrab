@@ -14,6 +14,7 @@ pub mod hdporn;
 pub mod hentai_foundry;
 pub mod imgur;
 pub mod nhentai;
+pub mod novelcrow;
 pub mod nsfwalbum;
 pub mod rule34;
 pub mod rule34_us;
@@ -270,4 +271,22 @@ mod prelude {
 
     pub static USER_AGENT: &str =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36";
+
+    pub struct ImageLink(String);
+
+    impl<T: Into<String>> From<T> for ImageLink {
+        fn from(value: T) -> Self {
+            ImageLink(value.into())
+        }
+    }
+
+    impl Downloadable for ImageLink {
+        type Context = Client;
+
+        type Output = ResponseGalleryItem;
+
+        fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
+            Ok(ResponseGalleryItem::new(context.get(self.0).send()?))
+        }
+    }
 }

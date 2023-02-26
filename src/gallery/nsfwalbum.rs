@@ -37,10 +37,10 @@ impl Context {
 
     fn request_image(&self, id: &str) -> crate::Result<Response> {
         let url = format_stage_one_url(id);
-        let image_content = self.client.get(&url).send()?.text()?;
+        let image_content = self.client.get(url).send()?.text()?;
         let (giraffe, salt) = self.extract_params(&image_content)?;
         let url = format_stage_two_url(id, giraffe, salt);
-        Ok(self.client.get(&url).send()?)
+        Ok(self.client.get(url).send()?)
     }
 
     fn extract_params<'a>(&self, image_content: &'a str) -> crate::Result<(&'a str, i32)> {

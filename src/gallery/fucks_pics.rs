@@ -51,7 +51,7 @@ fn get_gallery_name(document: &Html) -> Option<String> {
     document
         .select(&selector)
         .next()
-        .map(|element| element.inner_html().to_string())
+        .map(|element| element.inner_html())
 }
 
 pub struct Image(String);
@@ -62,6 +62,6 @@ impl Downloadable for Image {
     type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
-        Ok(ResponseGalleryItem::new(context.get(&self.0).send()?))
+        Ok(ResponseGalleryItem::new(context.get(self.0).send()?))
     }
 }

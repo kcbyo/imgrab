@@ -26,7 +26,7 @@ pub fn extract(url: &str) -> crate::Result<(PagedGallery<BmPager>, Option<String
     let name_from_query = query.name_from_query().map(|s| s.to_string());
     let mut pager = BmPager::new(query);
 
-    let text = context.client.get(&pager.next_url()).send()?.text()?;
+    let text = context.client.get(pager.next_url()).send()?.text()?;
     let pattern = Regex::new(r"Page \d+ of (\d+)").unwrap();
     let count = pattern
         .captures(&text)
@@ -115,7 +115,7 @@ impl Pager for BmPager {
             return Ok(Page::Empty);
         }
 
-        let text = context.client.get(&self.next_url()).send()?.text()?;
+        let text = context.client.get(self.next_url()).send()?.text()?;
         Ok(context.read_thumbs(&text))
     }
 }
@@ -142,7 +142,7 @@ impl Context {
                 element.attr("src").map(|src| {
                     if let Some(size_match) = self
                         .thumbnail_size_pattern
-                        .captures(&*src)
+                        .captures(&src)
                         .and_then(|x| x.get(1))
                     {
                         let left = &src[..size_match.start()];
@@ -167,8 +167,6 @@ impl Downloadable for Url {
     type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
-        Ok(ResponseGalleryItem::new(
-            context.client.get(&self.0).send()?,
-        ))
+        Ok(ResponseGalleryItem::new(context.client.get(self.0).send()?))
     }
 }

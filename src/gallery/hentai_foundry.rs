@@ -28,7 +28,7 @@ fn user_gallery(url: &str) -> crate::Result<PagedGallery<HfPager>> {
     let client = build_client();
     let base_url = truncate_url(url)?;
     let agree = base_url.to_string() + "?enterAgree=1";
-    let content = client.get(&agree).send()?.text()?;
+    let content = client.get(agree).send()?.text()?;
 
     // Extract the csrf token from the initial content and update filter settings.
     // I'm a little worried about this sending so many requests so quickly. Might be
@@ -100,7 +100,7 @@ impl Pager for HfPager {
             None => return Ok(Page::Empty),
         };
         let url = format!("{}/page/{}", self.base_url, page);
-        let document = context.client.get(&url).send()?.text()?;
+        let document = context.client.get(url).send()?.text()?;
         Ok(Page::Items(context.read_links(&document)))
     }
 }
@@ -114,7 +114,7 @@ impl Downloadable for HfUrl {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         let page = String::from("https://www.hentai-foundry.com") + &self.0;
-        let text = context.client.get(&page).send()?.text()?;
+        let text = context.client.get(page).send()?.text()?;
 
         fn extract_by_pattern<'a>(pattern: &Regex, text: &'a str) -> Option<&'a str> {
             Some(pattern.captures(text).map(|x| x.get(1).unwrap())?.as_str())
@@ -127,7 +127,7 @@ impl Downloadable for HfUrl {
 
         Ok(context
             .client
-            .get(&url)
+            .get(url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

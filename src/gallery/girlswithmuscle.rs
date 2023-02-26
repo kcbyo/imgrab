@@ -106,7 +106,7 @@ impl Downloadable for Id {
         let url = context.get_full_image_link(&self.0)?;
         Ok(context
             .client
-            .get(&url)
+            .get(url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

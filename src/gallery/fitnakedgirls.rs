@@ -35,6 +35,6 @@ impl Downloadable for FngUrl {
     type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
-        Ok(context.get(&self.0).send().map(ResponseGalleryItem::new)?)
+        Ok(context.get(self.0).send().map(ResponseGalleryItem::new)?)
     }
 }

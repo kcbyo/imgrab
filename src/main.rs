@@ -53,6 +53,7 @@ fn run(opt: &Opt) -> crate::Result<()> {
         "hdporn.pics" => download(opt, hdporn::extract),
         "imgur.com" => download(opt, imgur::extract),
         "nhentai.net" => download(opt, nhentai::extract),
+        "novelcrow.com" => download(opt, novelcrow::extract),
         "nsfwalbum.com" => download(opt, nsfwalbum::extract),
         "rule34.us" => download(opt, rule34_us::extract),
         "rule34.xxx" => download(opt, rule34::extract),

@@ -97,7 +97,7 @@ impl Pager for BleachbooruPager {
         };
         self.page += 1;
 
-        let images: VecDeque<Image> = context.get(&request.format()).send()?.json()?;
+        let images: VecDeque<Image> = context.get(request.format()).send()?.json()?;
         if !images.is_empty() {
             Ok(Page::Items(images))
         } else {
@@ -128,7 +128,7 @@ impl Downloadable for Image {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         let url = format!("{IMAGE_BASE_URL}{}", self.file_url);
-        Ok(context.get(&url).send().map(ResponseGalleryItem::new)?)
+        Ok(context.get(url).send().map(ResponseGalleryItem::new)?)
     }
 }
 

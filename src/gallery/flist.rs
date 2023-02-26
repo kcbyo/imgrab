@@ -82,16 +82,16 @@ impl Downloadable for FlistImage {
                     "https://static.f-list.net/images/charinline/{}/{}/{}.{}",
                     d, e, inline.hash, inline.extension
                 );
-                context.client.get(&url).send()?
+                context.client.get(url).send()?
             }
             FlistImage::Profile(image) => {
                 let url = format!(
                     "https://static.f-list.net/images/charimage/{}.{}",
                     image.id, image.extension
                 );
-                context.client.get(&url).send()?
+                context.client.get(url).send()?
             }
-            FlistImage::Link(url) => context.client.get(&url).send()?,
+            FlistImage::Link(url) => context.client.get(url).send()?,
         };
 
         Ok(ResponseGalleryItem::new(response))
@@ -156,7 +156,7 @@ fn read_inlines(content: &str) -> Option<Vec<Inline>> {
     let pattern = Regex::new(r#"FList\.Inlines\.inlines ?= ?(\{.+\})"#).unwrap();
     let captures = pattern.captures(content)?;
     let inlines: HashMap<&str, Inline> = serde_json::from_str(captures.get(1)?.as_str()).ok()?;
-    Some(inlines.into_iter().map(|(_, v)| v).collect())
+    Some(inlines.into_values().collect())
 }
 
 fn read_links(content: &str) -> Option<Vec<String>> {

@@ -168,7 +168,7 @@ fn build_filtered_string(head: &str, tail: &str, mut skip_numerals: bool) -> Str
                 buf.push('_');
             }
         } else {
-            if skip_numerals && matches!(u, b'0'..=b'9') {
+            if skip_numerals && u.is_ascii_digit() {
                 continue;
             }
 

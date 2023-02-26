@@ -1,6 +1,6 @@
 [package]
 name = "imgrab"
-version = "0.8.19"
+version = "0.8.20"
 authors = ["Keep Calm <keepcalmandbyo@gmail.com>"]
 edition = "2021"
 include = ["src/**/*", "README.md"]
@@ -8,17 +8,17 @@ include = ["src/**/*", "README.md"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4.22"
-clap = { version = "4.0.15", features = ["derive", "wrap_help"] }
+chrono = "0.4.23"
+clap = { version = "4.1.6", features = ["derive", "wrap_help"] }
 directories = "4.0.1"
 fmtsize = "0.1.1"
 nipper = "0.1.9"
 pathdiff = "0.2.1"
-regex = "1.6.0"
-reqwest = { version = "0.11.12", features = ["blocking", "cookies", "json"] }
-scraper = "0.13.0"
-serde = { version = "1.0.145", features = ["derive"] }
-serde_json = "1.0.86"
+regex = "1.7.1"
+reqwest = { version = "0.11.14", features = ["blocking", "cookies", "json"] }
+scraper = "0.14.0"
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.93"
 sha1_smol = "1.0.0"
 url = "2.3.1"
 urlencoding = "2.1.2"

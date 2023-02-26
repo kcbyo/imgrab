@@ -102,7 +102,7 @@ impl Pager for Rule34Pager {
 
         let request = self.format_request();
         self.page += 1;
-        let text = context.client.get(&request).send()?.text()?;
+        let text = context.client.get(request).send()?.text()?;
 
         // https://rule34.us/index.php?r=posts/view&id=4597827
         // https://rule34.us/index.php?r=posts/view&id=4597826
@@ -133,7 +133,7 @@ impl Downloadable for GalleryItemId {
     type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
-        let text = context.client.get(&self.page_url()).send()?.text()?;
+        let text = context.client.get(self.page_url()).send()?.text()?;
         let url = context
             .image_url_expr
             .captures_iter(&text)

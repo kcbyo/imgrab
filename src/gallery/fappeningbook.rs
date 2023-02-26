@@ -100,7 +100,7 @@ impl Downloadable for Image {
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         Ok(context
             .client
-            .get(&self.0)
+            .get(self.0)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

@@ -11,7 +11,7 @@ pub fn extract(url: &str) -> crate::Result<(PagedGallery<BitchesPager>, Option<S
         .ok_or_else(|| Error::Unsupported(UnsupportedError::Route, format!("bad url: {url}")))?;
 
     let init_url = format!("{AJAX_BASE_ROUTE}{route}1/");
-    let init_response: AlbumResponse = client.get(&init_url).send()?.json()?;
+    let init_response: AlbumResponse = client.get(init_url).send()?.json()?;
     let pager = BitchesPager::new(route, init_response.pages_amount);
 
     Ok((
@@ -70,7 +70,7 @@ impl Pager for BitchesPager {
             None => return Ok(Page::Empty),
         };
 
-        let response: AlbumResponse = context.client.get(&url).send()?.json()?;
+        let response: AlbumResponse = context.client.get(url).send()?.json()?;
 
         Ok(response
             .album
@@ -92,7 +92,7 @@ impl Downloadable for Item {
         let url = context.cdn_url(&self.0);
         Ok(context
             .client
-            .get(&url)
+            .get(url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

@@ -28,7 +28,7 @@ pub fn extract(url: &str) -> crate::Result<(UnpagedGallery<ImageToken>, Option<S
     // have the gallery info, we'll store the media id and image formats for future use.
 
     let url = url.to_string() + "/1/";
-    let document = client.get(&url).send()?.text()?;
+    let document = client.get(url).send()?.text()?;
     let pattern = Regex::new(r#"JSON\.parse\("(.+?)"\)"#).unwrap();
     let packet = pattern
         .captures(&document)
@@ -88,7 +88,7 @@ impl Downloadable for ImageToken {
 
         Ok(context
             .client
-            .get(&url)
+            .get(url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

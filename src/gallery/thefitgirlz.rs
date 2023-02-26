@@ -95,7 +95,7 @@ impl Downloadable for Url {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         // Step one: get the image url from the gallery page
-        let content = context.client.get(&self.0).send()?.text()?;
+        let content = context.client.get(self.0).send()?.text()?;
         let document = Document::from(&content);
         let url = document
             .select_matcher(&context.image_meta_selector)
@@ -118,7 +118,7 @@ impl Downloadable for Url {
 
         // Step two: create a new image name based on the image url, because
         // there's way too much repetition in the standard names for these.
-        let captures = context.image_name_pattern.captures(&*url).ok_or_else(|| {
+        let captures = context.image_name_pattern.captures(&url).ok_or_else(|| {
             Error::Extraction(
                 ExtractionFailure::Metadata,
                 format!(

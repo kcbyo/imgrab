@@ -44,7 +44,7 @@ impl Downloadable for Image {
     type Output = ResponseGalleryItem;
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
-        Ok(ResponseGalleryItem::new(context.get(&self.0).send()?))
+        Ok(ResponseGalleryItem::new(context.get(self.0).send()?))
     }
 }
 

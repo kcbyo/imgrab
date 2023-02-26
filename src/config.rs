@@ -18,7 +18,7 @@ impl Configuration {
     pub fn init() -> Self {
         let text = UserDirs::new()
             .map(|dirs| dirs.home_dir().join(".imgrab.conf"))
-            .and_then(|conf| fs::read_to_string(&conf).ok());
+            .and_then(|conf| fs::read_to_string(conf).ok());
 
         text.map(|text| Configuration {
             config: read_config(&text),

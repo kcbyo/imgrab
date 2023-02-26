@@ -138,7 +138,7 @@ impl Pager for ExHentaiPager {
 
         let url = format!("{}?p={}", self.base_url, self.page);
         self.page += 1;
-        let text = context.client.get(&url).send()?.text()?;
+        let text = context.client.get(url).send()?.text()?;
         let page: Page<_> = context
             .page_url_pattern
             .find_iter(&text)
@@ -200,7 +200,7 @@ impl Downloadable for ExHentaiUrl {
         let url = context.retrieve_image_url(&self.0)?;
         Ok(context
             .client
-            .get(&url)
+            .get(url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

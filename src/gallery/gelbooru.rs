@@ -53,7 +53,7 @@ impl Pager for GelbooruPager {
         };
         self.page += 1;
 
-        let response: Response = context.get(&request.format()).send()?.json()?;
+        let response: Response = context.get(request.format()).send()?.json()?;
         let page = response.into_posts();
         match page {
             Some(page) => Ok(Page::Items(page)),
@@ -109,7 +109,7 @@ impl Downloadable for Image {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         Ok(context
-            .get(&self.file_url)
+            .get(self.file_url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }

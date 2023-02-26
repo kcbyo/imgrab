@@ -40,7 +40,7 @@ impl Downloadable for ImageModel {
         let link = self.mp4.unwrap_or(self.link);
         Ok(context
             .client
-            .get(&link)
+            .get(link)
             .send()
             .map(ResponseGalleryItem::new)?)
     }
@@ -114,7 +114,7 @@ impl Context {
 fn query_album(context: &Context, url: &str) -> crate::Result<VecDeque<ImageModel>> {
     let response: ResponseModel<VecDeque<ImageModel>> = context
         .client
-        .get(&format!(
+        .get(format!(
             "https://api.imgur.com/3/album/{}/images",
             last_segment(url)?
         ))
@@ -126,7 +126,7 @@ fn query_album(context: &Context, url: &str) -> crate::Result<VecDeque<ImageMode
 fn query_gallery(context: &Context, url: &str) -> crate::Result<VecDeque<ImageModel>> {
     let response: ResponseModel<GalleryModel> = context
         .client
-        .get(&format!(
+        .get(format!(
             "https://api.imgur.com/3/gallery/album/{}",
             last_segment(url)?
         ))
@@ -138,7 +138,7 @@ fn query_gallery(context: &Context, url: &str) -> crate::Result<VecDeque<ImageMo
 fn query_image(context: &Context, url: &str) -> crate::Result<ImageModel> {
     let response: ResponseModel<ImageModel> = context
         .client
-        .get(&format!(
+        .get(format!(
             "https://api.imgur.com/3/image/{}",
             last_segment(url)?
         ))

@@ -61,7 +61,7 @@ impl Pager for AtfBooruPager {
         self.page += 1;
 
         let images: VecDeque<Image> = context
-            .get(&request.format())
+            .get(request.format())
             .basic_auth(&self.auth.user, Some(&self.auth.api_key))
             .send()?
             .json()?;
@@ -103,7 +103,7 @@ impl Downloadable for Image {
 
     fn download(self, context: &Self::Context) -> crate::Result<Self::Output> {
         Ok(context
-            .get(&self.file_url)
+            .get(self.file_url)
             .send()
             .map(ResponseGalleryItem::new)?)
     }
